@@ -13,7 +13,8 @@ const LegionConfig = {
         lastResultsLoad: '/api/get_last_results.php',
         lastResultsSave: '/api/save_last_results.php',
         rotationPassword: '/api/verify_rotation_password.php',
-        ranksLoad: '/api/get_ranks.php'
+        ranksLoad: '/api/get_ranks.php',
+        athletesLoad: '/api/get_athletes.php'
     },
 
     ACHIEVEMENTS_SCOPE: 'global',

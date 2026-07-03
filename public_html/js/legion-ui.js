@@ -90,8 +90,12 @@ const LegionUI = {
     },
 
     buildExerciseSeries(athleteName, exerciseKey, history, currentVal) {
+        const norm = (n) => (typeof LegionCore !== 'undefined' && LegionCore.normalizePersonName)
+            ? LegionCore.normalizePersonName(n)
+            : String(n || '').trim();
+        const targetName = norm(athleteName);
         const raw = history
-            .filter(e => e.name === athleteName && e.exercise === exerciseKey)
+            .filter(e => norm(e.name) === targetName && e.exercise === exerciseKey)
             .sort((a, b) => this.parseHistoryDate(a.date) - this.parseHistoryDate(b.date));
         const points = [];
         if (raw.length > 0) {

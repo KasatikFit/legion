@@ -23,6 +23,7 @@ $coachesJson = json_encode(legion_coaches_for_js(), JSON_UNESCAPED_UNICODE | JSO
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($pageTitle); ?></title>
     <link rel="icon" href="/images/legion-logo.png">
+    <?php require __DIR__ . '/legion-head-fonts.php'; ?>
     <link rel="stylesheet" href="/css/legion.css?v=<?php echo (int)$legionVer; ?>">
 </head>
 <body data-legion-page="coach" data-coach-slug="<?php echo htmlspecialchars($currentSlug); ?>">
@@ -80,13 +81,12 @@ $coachesJson = json_encode(legion_coaches_for_js(), JSON_UNESCAPED_UNICODE | JSO
     __legionStatus('Запуск страницы…');
     </script>
     <script>window.LegionCoachesFromServer = <?php echo $coachesJson; ?>;</script>
-    <?php require __DIR__ . '/legion-ranks-preload.php'; ?>
-    <script src="/js/legion-config.js?v=<?php echo (int)$legionVer; ?>" onerror="__legionError('Не найден js/legion-config.js — залейте на сервер')"></script>
-    <script src="/js/legion-core.js?v=<?php echo (int)$legionVer; ?>" onerror="__legionError('Не найден js/legion-core.js — залейте на сервер')"></script>
-    <script src="/js/legion-ui.js?v=<?php echo (int)$legionVer; ?>" onerror="__legionError('Не найден js/legion-ui.js — залейте на сервер')"></script>
-    <script src="/js/legion-coach.js?v=<?php echo (int)$legionVer; ?>" onerror="__legionError('Не найден js/legion-coach.js — залейте на сервер')"></script>
+    <script src="/js/legion-config.js?v=<?php echo (int)$legionVer; ?>" defer onerror="__legionError('Не найден js/legion-config.js — залейте на сервер')"></script>
+    <script src="/js/legion-core.js?v=<?php echo (int)$legionVer; ?>" defer onerror="__legionError('Не найден js/legion-core.js — залейте на сервер')"></script>
+    <script src="/js/legion-ui.js?v=<?php echo (int)$legionVer; ?>" defer onerror="__legionError('Не найден js/legion-ui.js — залейте на сервер')"></script>
+    <script src="/js/legion-coach.js?v=<?php echo (int)$legionVer; ?>" defer onerror="__legionError('Не найден js/legion-coach.js — залейте на сервер')"></script>
     <script>
-    (function () {
+    document.addEventListener('DOMContentLoaded', function () {
         if (typeof LegionConfig === 'undefined') {
             __legionError('legion-config.js не загрузился');
             return;
@@ -108,7 +108,7 @@ $coachesJson = json_encode(legion_coaches_for_js(), JSON_UNESCAPED_UNICODE | JSO
         } catch (e) {
             __legionError('Ошибка: ' + (e.message || e));
         }
-    })();
+    });
     </script>
 
     <div class="rotation-panel no-print" id="rotation-panel">

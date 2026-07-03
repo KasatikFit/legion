@@ -10,6 +10,31 @@ function storage_validate_scope($scope, $includeGlobal = true) {
     return in_array($scope, storage_valid_scopes($includeGlobal), true) ? $scope : null;
 }
 
+/**
+ * Объединяет снимки из global и страниц тренеров (для сравнения при пустом global).
+ */
+function storage_merge_last_results(array $all) {
+    $merged = array();
+    if (!empty($all['global']) && is_array($all['global'])) {
+        foreach ($all['global'] as $name => $marks) {
+            if (is_array($marks)) {
+                $merged[$name] = $marks;
+            }
+        }
+    }
+    foreach ($all as $scopeKey => $scopeData) {
+        if ($scopeKey === 'global' || !is_array($scopeData)) {
+            continue;
+        }
+        foreach ($scopeData as $name => $marks) {
+            if (!isset($merged[$name]) && is_array($marks)) {
+                $merged[$name] = $marks;
+            }
+        }
+    }
+    return $merged;
+}
+
 function storage_read_json($path, $default = []) {
     if (!file_exists($path)) {
         return $default;

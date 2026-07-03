@@ -21,7 +21,9 @@ const LegionCoachPage = {
             if (content) content.innerHTML = `<p class="error">${msg}</p>`;
             return;
         }
-        this.lastResultsScope = this.coach.slug;
+        this.lastResultsScope = (typeof LegionConfig !== 'undefined' && LegionConfig.CLUB_LAST_RESULTS_SCOPE)
+            ? LegionConfig.CLUB_LAST_RESULTS_SCOPE
+            : 'global';
         LegionCore.bindCommonGlobals();
         this.bindGlobals();
         LegionCore.initPageUI(() => this.renderCurrentTab());
@@ -236,8 +238,11 @@ const LegionCoachPage = {
         try {
             contentDiv.innerHTML = '<p class="note">Загрузка данных из Google Таблиц…</p>';
 
-            const athletesData = await LegionCore.loadAllAthletes();
-            const rankData = await LegionCore.loadRanks(athletesData);
+            const [athletesData, rankDataRaw] = await Promise.all([
+                LegionCore.loadAllAthletes(),
+                LegionCore.loadRanks()
+            ]);
+            const rankData = await LegionCore.ensureRankCoverage(athletesData, rankDataRaw);
 
             LegionCore.state.athletesData = athletesData;
             LegionCore.applyRankData(rankData, athletesData);
@@ -273,9 +278,7 @@ const LegionCoachPage = {
             LegionCore.renderLoadWarnings();
             this.renderCurrentTab();
 
-            this.syncBackgroundData(athletesData).catch((e) => {
-                console.warn('Фоновая синхронизация:', e);
-            });
+            await this.syncBackgroundData(athletesData);
         } catch (err) {
             contentDiv.innerHTML = `<p class="error">${err.message || err}</p>`;
             throw err;
@@ -285,22 +288,16 @@ const LegionCoachPage = {
     async syncBackgroundData(athletesData) {
         await Promise.allSettled([
             this.loadEliteFromServer(),
-            LegionCore.loadLastResultsFromServer(this.lastResultsScope),
             LegionCore.loadHistoryFromServer(),
             LegionCore.loadAchievementsFromServer()
         ]);
 
         await Promise.allSettled([
             LegionCore.migrateAchievementsFromLocalStorage(),
-            this.migrateEliteFromLocalStorage(),
-            LegionCore.migrateLastResultsFromLocalStorage(this.lastResultsScope, `${this.coach.slug}LastResults`)
+            this.migrateEliteFromLocalStorage()
         ]);
 
-        const lastResults = LegionCore.getLastResults();
-        if (Object.keys(lastResults).length > 0) {
-            LegionCore.compareAndRecordHistory(lastResults, athletesData);
-        }
-        LegionCore.setLastResults(this.lastResultsScope, LegionCore.snapshotCurrentResults(athletesData));
+        await LegionCore.processResultHistoryChanges(athletesData, this.lastResultsScope);
 
         if (this.getElite().length === 0 && this.coachSorted.length > 0) {
             this.setElite(this.coachSorted.slice(0, 10).map(a => a.name));
@@ -525,7 +522,7 @@ const LegionCoachPage = {
         const coachAthlete = this.coachAthletes.find(a => a.name === name);
         const coachRank = coachAthlete ? coachAthlete.coachRank : '?';
         const overallRank = athlete.overallRank || '?';
-        const clubRank = LegionCore.getClubRank(name);
+        const clubRank = LegionCore.getClubRank(name, athlete.coachSlug);
 
         LegionUI.applyPhotoFrame(document.getElementById('modal-photo-frame'), clubRank, isElite, false);
 

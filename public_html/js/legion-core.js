@@ -139,26 +139,94 @@ const LegionCore = {
                 }
             }
             if (!name) return;
-            merged[this.normalizePersonName(name)] = entry.marks;
+            const norm = this.normalizePersonName(name);
+            merged[coach.slug + ':' + norm] = entry.marks;
+            if (!merged[norm] || entry.marks.some((m) => m)) {
+                merged[norm] = entry.marks;
+            }
         });
         return merged;
     },
 
-    lookupRankMarks(name) {
+    lookupRankMarks(name, coachSlug) {
         const data = this.state.rankData || {};
         const normalized = this.normalizePersonName(name);
+        if (coachSlug) {
+            const scopedKey = coachSlug + ':' + normalized;
+            if (data[scopedKey]) return data[scopedKey];
+        }
         if (data[normalized]) return data[normalized];
         if (data[name]) return data[name];
 
         const keys = Object.keys(data);
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
+            if (key.indexOf(':') !== -1) continue;
             if (key.startsWith(normalized) || normalized.startsWith(key)) {
                 const minLen = Math.min(key.length, normalized.length);
                 if (minLen >= 6) return data[key];
             }
         }
         return null;
+    },
+
+    hasRankMarksIn(rankData, name, coachSlug) {
+        const data = rankData || {};
+        const normalized = this.normalizePersonName(name);
+        if (coachSlug) {
+            if (data[coachSlug + ':' + normalized]) return true;
+        }
+        if (data[normalized] || data[name]) return true;
+        return false;
+    },
+
+    getCoachesMissingRankCoverage(athletesData, rankData) {
+        const byCoach = {};
+        (athletesData || []).forEach((a) => {
+            const slug = a.coachSlug || '';
+            if (!slug) return;
+            if (!byCoach[slug]) byCoach[slug] = { total: 0, missing: 0 };
+            byCoach[slug].total++;
+            if (!this.hasRankMarksIn(rankData, a.name, slug)) {
+                byCoach[slug].missing++;
+            }
+        });
+        return Object.keys(byCoach).filter((slug) => {
+            const c = byCoach[slug];
+            return c.total > 0 && c.missing > 0;
+        });
+    },
+
+    async loadCoachRanksInto(rankData, athletesData, coachSlug) {
+        const coach = LegionConfig.getCoaches().find((c) => c.slug === coachSlug);
+        if (!coach || !coach.ranksCsvUrl) return rankData || {};
+
+        const merged = { ...(rankData || {}) };
+        try {
+            const resp = await this.fetchWithTimeout(coach.ranksCsvUrl);
+            if (!resp.ok) return merged;
+            const entries = this.parseRankCSV(await resp.text());
+            const coachMerged = this.mergeCoachRankEntries(entries, athletesData, coach);
+            Object.keys(coachMerged).forEach((name) => {
+                const norm = this.normalizePersonName(name);
+                merged[coachSlug + ':' + norm] = coachMerged[name];
+                if (!merged[norm] || this.normalizeRankMarksValue(coachMerged[name]).filter(Boolean).length > 0) {
+                    merged[norm] = coachMerged[name];
+                }
+            });
+        } catch (e) {
+            console.warn('Ранги тренера', coachSlug, e);
+        }
+        return merged;
+    },
+
+    async ensureRankCoverage(athletesData, rankData) {
+        let data = rankData || {};
+        const missing = this.getCoachesMissingRankCoverage(athletesData, data);
+        for (const slug of missing) {
+            data = await this.loadCoachRanksInto(data, athletesData, slug);
+        }
+        return data;
     },
 
     pointsForRank(rank) {
@@ -239,15 +307,51 @@ const LegionCore = {
         return this.fetchWithTimeout(url, options, 15000);
     },
 
-    async loadAllAthletes() {
+    async loadAllAthletes(options = {}) {
         const coaches = LegionConfig.getCoaches();
         if (!coaches.length) {
             throw new Error('Список тренеров пуст. Обновите страницу или проверьте api/coaches.php на сервере.');
         }
 
+        const coachSlug = options.coachSlug || null;
+        const { API } = LegionConfig;
         this.state.loadWarnings = [];
 
-        const settled = await Promise.allSettled(coaches.map(async (coach) => {
+        try {
+            const url = coachSlug
+                ? `${API.athletesLoad}?coach=${encodeURIComponent(coachSlug)}`
+                : API.athletesLoad;
+            const resp = await this.fetchApi(url);
+            if (resp.ok) {
+                const payload = await resp.json();
+                const athletes = Array.isArray(payload.athletes) ? payload.athletes : [];
+                if (Array.isArray(payload.warnings)) {
+                    payload.warnings.forEach((w) => {
+                        this.state.loadWarnings.push({
+                            coach: w.coach || '',
+                            slug: w.slug || '',
+                            message: w.message || 'Ошибка загрузки'
+                        });
+                    });
+                }
+                if (athletes.length > 0) {
+                    return athletes;
+                }
+            }
+        } catch (e) {
+            console.warn('Загрузка через API не удалась, пробуем Google Таблицы:', e);
+        }
+
+        this.state.loadWarnings = [];
+
+        const coachList = coachSlug
+            ? coaches.filter((c) => c.slug === coachSlug)
+            : coaches;
+        if (!coachList.length) {
+            throw new Error('Тренер не найден в конфигурации.');
+        }
+
+        const settled = await Promise.allSettled(coachList.map(async (coach) => {
             const resp = await this.fetchWithTimeout(coach.csvUrl);
             if (!resp.ok) {
                 throw new Error(`HTTP ${resp.status} — не удалось загрузить таблицу`);
@@ -266,7 +370,7 @@ const LegionCore = {
 
         const athletesData = [];
         settled.forEach((result, index) => {
-            const coach = coaches[index];
+            const coach = coachList[index];
             if (result.status === 'fulfilled') {
                 athletesData.push(...result.value);
                 return;
@@ -362,7 +466,7 @@ const LegionCore = {
     applyRankData(rankData, athletesData = []) {
         this.state.rankData = rankData || {};
         athletesData.forEach((a) => {
-            a.rankMarks = this.lookupRankMarks(a.name);
+            a.rankMarks = this.lookupRankMarks(a.name, a.coachSlug);
         });
     },
 
@@ -399,58 +503,58 @@ const LegionCore = {
     },
 
     async loadRanks(athletesData = []) {
-        if (typeof window !== 'undefined' && window.__legionRanksFromServer) {
-            const fromPage = this.normalizeRankDataFromServer(window.__legionRanksFromServer);
-            if (Object.keys(fromPage).length > 0) {
-                return fromPage;
-            }
-        }
-
+        let rankData = {};
         const { API } = LegionConfig;
 
         try {
-            const resp = await this.fetchApi(API.ranksLoad);
+            const resp = await this.fetchWithTimeout(
+                `${API.ranksLoad}?_=${Date.now()}`,
+                { cache: 'no-store' },
+                20000
+            );
             if (resp.ok) {
                 const payload = await resp.json();
                 const ranks = this.normalizeRankDataFromServer(payload.ranks || {});
                 if (Object.keys(ranks).length > 0) {
-                    if (Array.isArray(payload.coaches)) {
-                        payload.coaches.forEach((stat) => {
-                            if (!stat.ok && stat.error) {
-                                this.state.loadWarnings.push({
-                                    coach: stat.name,
-                                    slug: stat.slug,
-                                    message: 'Ранги: ' + stat.error
-                                });
-                            }
-                        });
-                    }
-                    return ranks;
+                    rankData = ranks;
+                }
+                if (Array.isArray(payload.coaches)) {
+                    payload.coaches.forEach((stat) => {
+                        if (!stat.ok && stat.error) {
+                            this.state.loadWarnings.push({
+                                coach: stat.name,
+                                slug: stat.slug,
+                                message: 'Ранги: ' + stat.error
+                            });
+                        }
+                    });
                 }
             }
         } catch (e) {
             console.warn('Загрузка рангов через API не удалась:', e);
         }
 
-        const coaches = LegionConfig.getCoaches().filter(c => c.ranksCsvUrl);
-        if (!coaches.length) {
-            console.warn('Нет таблиц рангов у тренеров (ranksCsvUrl в coaches.php)');
-            return {};
+        if (athletesData.length > 0) {
+            rankData = await this.ensureRankCoverage(athletesData, rankData);
+        } else if (Object.keys(rankData).length === 0) {
+            const coaches = LegionConfig.getCoaches().filter(c => c.ranksCsvUrl);
+            if (coaches.length) {
+                rankData = await this.loadRanksFromGoogle(athletesData);
+            }
         }
 
-        const merged = await this.loadRanksFromGoogle(athletesData);
-        if (Object.keys(merged).length === 0) {
+        if (Object.keys(rankData).length === 0) {
             this.state.loadWarnings.push({
                 coach: 'Ранги',
                 slug: '',
-                message: 'Ранги: не удалось загрузить — залейте api/get_ranks.php и api/ranks_lib.php на сервер'
+                message: 'Ранги: не удалось загрузить — проверьте таблицы рангов и /diagnostics/'
             });
         }
-        return merged;
+        return rankData;
     },
 
-    getClubRank(name) {
-        const marks = this.lookupRankMarks(name);
+    getClubRank(name, coachSlug) {
+        const marks = this.lookupRankMarks(name, coachSlug);
         const cfg = LegionConfig;
         if (!marks) return null;
 
@@ -517,17 +621,24 @@ const LegionCore = {
     },
 
     async saveHistoryToServer(entries) {
+        if (!entries.length) return;
         const { API } = LegionConfig;
+        const prevHistory = this.state.serverHistory;
+        this.state.serverHistory = this.trimHistoryPerAthlete(
+            this.state.serverHistory.concat(entries)
+        );
         try {
-            await fetch(API.historySave, {
+            const resp = await this.fetchApi(API.historySave, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ entries })
             });
-            this.state.serverHistory = this.trimHistoryPerAthlete(
-                this.state.serverHistory.concat(entries)
-            );
+            if (!resp.ok) {
+                this.state.serverHistory = prevHistory;
+                console.warn('Ошибка сохранения истории: HTTP', resp.status);
+            }
         } catch (e) {
+            this.state.serverHistory = prevHistory;
             console.warn('Ошибка сохранения истории:', e);
         }
     },
@@ -536,8 +647,45 @@ const LegionCore = {
         return this.state.serverHistory;
     },
 
-    addHistoryEntries(entries) {
-        if (entries.length > 0) this.saveHistoryToServer(entries);
+    async addHistoryEntries(entries) {
+        if (entries.length > 0) await this.saveHistoryToServer(entries);
+    },
+
+    normalizeLastResultsMap(lastResults) {
+        const out = {};
+        Object.keys(lastResults || {}).forEach((key) => {
+            out[this.normalizePersonName(key)] = lastResults[key];
+        });
+        return out;
+    },
+
+    buildHistoryEntries(lastResults, newData) {
+        const now = new Date().toLocaleString('ru-RU');
+        const entries = [];
+        const exercises = LegionConfig.getExerciseKeys();
+        const normalizedLast = this.normalizeLastResultsMap(lastResults);
+
+        newData.forEach((athlete) => {
+            const name = this.normalizePersonName(athlete.name);
+            if (!normalizedLast[name]) return;
+            exercises.forEach((ex) => {
+                const oldVal = normalizedLast[name][ex];
+                const newVal = athlete[ex];
+                const oldNum = Number(oldVal);
+                const newNum = Number(newVal);
+                if (oldNum === newNum) return;
+                if (isNaN(oldNum) && isNaN(newNum)) return;
+                entries.push({
+                    date: now,
+                    name,
+                    exercise: ex,
+                    oldVal: isNaN(oldNum) ? oldVal : oldNum,
+                    newVal: isNaN(newNum) ? newVal : newNum,
+                    diff: (isNaN(newNum) ? 0 : newNum) - (isNaN(oldNum) ? 0 : oldNum)
+                });
+            });
+        });
+        return entries;
     },
 
     computeEliteRotation(prevList, sortedAthletes, keepCount, targetSize) {
@@ -626,30 +774,101 @@ const LegionCore = {
         }
     },
 
-    compareAndRecordHistory(lastResults, newData) {
-        const now = new Date().toLocaleString('ru-RU');
-        const entries = [];
-        const exercises = LegionConfig.getExerciseKeys();
-        newData.forEach(athlete => {
-            const name = athlete.name;
-            if (!lastResults[name]) return;
-            exercises.forEach(ex => {
-                const oldVal = lastResults[name][ex];
-                const newVal = athlete[ex];
-                if (oldVal !== newVal) {
-                    entries.push({ date: now, name, exercise: ex, oldVal, newVal, diff: newVal - oldVal });
-                }
+    async compareAndRecordHistory(lastResults, newData) {
+        const entries = this.buildHistoryEntries(lastResults, newData);
+        if (entries.length > 0) await this.addHistoryEntries(entries);
+        return entries.length;
+    },
+
+    localResultsBaselineKey(scope) {
+        return `legionResultsBaseline:${scope || 'global'}`;
+    },
+
+    getLocalResultsBaseline(scope) {
+        try {
+            const raw = localStorage.getItem(this.localResultsBaselineKey(scope));
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    },
+
+    saveLocalResultsBaseline(scope, data) {
+        try {
+            localStorage.setItem(this.localResultsBaselineKey(scope), JSON.stringify(data));
+        } catch (e) {
+            console.warn('Не удалось сохранить локальный снимок результатов:', e);
+        }
+    },
+
+    mergeLastResultsMaps(...maps) {
+        const out = {};
+        maps.forEach((map) => {
+            Object.keys(map || {}).forEach((key) => {
+                const name = this.normalizePersonName(key);
+                const marks = map[key];
+                if (!marks || typeof marks !== 'object') return;
+                out[name] = { ...(out[name] || {}), ...marks };
             });
         });
-        if (entries.length > 0) this.addHistoryEntries(entries);
+        return out;
+    },
+
+    async loadLastResultsBaseline(scope) {
+        await this.loadLastResultsFromServer(scope, true);
+        const server = this.normalizeLastResultsMap(this.state.serverLastResults);
+        const local = this.normalizeLastResultsMap(this.getLocalResultsBaseline(scope));
+        return this.mergeLastResultsMaps(local, server);
+    },
+
+    async migrateAllLastResultsBaselines(scope) {
+        if (Object.keys(this.state.serverLastResults).length > 0) return;
+        const keys = ['clubLastResults'];
+        LegionConfig.getCoaches().forEach((coach) => {
+            keys.push(`${coach.slug}LastResults`);
+        });
+        for (const key of keys) {
+            await this.migrateLastResultsFromLocalStorage(scope, key);
+            if (Object.keys(this.state.serverLastResults).length > 0) break;
+        }
+    },
+
+    snapshotsEqual(a, b) {
+        return JSON.stringify(a || {}) === JSON.stringify(b || {});
+    },
+
+    /**
+     * Сравнивает текущие результаты с прошлым снимком, пишет историю, обновляет снимок.
+     */
+    async processResultHistoryChanges(athletesData, scope) {
+        const compareScope = scope || LegionConfig.CLUB_LAST_RESULTS_SCOPE || 'global';
+        await this.loadLastResultsFromServer(compareScope, false);
+        await this.migrateAllLastResultsBaselines(compareScope);
+        const baseline = await this.loadLastResultsBaseline(compareScope);
+        let recorded = 0;
+        const snapshot = athletesData.length > 0 ? this.snapshotCurrentResults(athletesData) : {};
+        if (athletesData.length > 0 && Object.keys(baseline).length > 0) {
+            recorded = await this.compareAndRecordHistory(baseline, athletesData);
+        }
+        if (athletesData.length > 0 && !this.snapshotsEqual(snapshot, baseline)) {
+            await this.setLastResults(compareScope, snapshot);
+            this.saveLocalResultsBaseline(compareScope, snapshot);
+        }
+        if (recorded > 0) {
+            await this.loadHistoryFromServer();
+        }
+        return recorded;
     },
 
     // ---------- Прошлые результаты ----------
 
-    async loadLastResultsFromServer(scope) {
+    async loadLastResultsFromServer(scope, merge = false) {
         const { API } = LegionConfig;
+        const mergeParam = merge ? '&merge=1' : '';
         try {
-            const resp = await this.fetchApi(`${API.lastResultsLoad}?scope=${scope}`);
+            const resp = await this.fetchApi(`${API.lastResultsLoad}?scope=${encodeURIComponent(scope)}${mergeParam}`);
             if (resp.ok) {
                 const data = await resp.json();
                 this.state.serverLastResults = data && typeof data === 'object' ? data : {};
@@ -666,11 +885,14 @@ const LegionCore = {
         const { API } = LegionConfig;
         this.state.serverLastResults = data;
         try {
-            await fetch(API.lastResultsSave, {
+            const resp = await this.fetchApi(API.lastResultsSave, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ scope, data })
             });
+            if (!resp.ok) {
+                console.warn('Ошибка сохранения прошлых результатов: HTTP', resp.status);
+            }
         } catch (e) {
             console.warn('Ошибка сохранения прошлых результатов:', e);
         }
@@ -681,7 +903,7 @@ const LegionCore = {
     },
 
     setLastResults(scope, data) {
-        this.saveLastResultsToServer(scope, data);
+        return this.saveLastResultsToServer(scope, data);
     },
 
     async migrateLastResultsFromLocalStorage(scope, localKey) {
@@ -700,12 +922,14 @@ const LegionCore = {
 
     snapshotCurrentResults(athletes) {
         const currentResults = {};
-        athletes.forEach(a => {
+        athletes.forEach((a) => {
             const row = {};
-            LegionConfig.getExerciseKeys().forEach(ex => {
+            const name = this.normalizePersonName(a.name);
+            if (!name) return;
+            LegionConfig.getExerciseKeys().forEach((ex) => {
                 row[ex] = a[ex];
             });
-            currentResults[a.name] = row;
+            currentResults[name] = row;
         });
         return currentResults;
     },
@@ -887,8 +1111,10 @@ const LegionCore = {
         return '';
     },
 
-    formatRankDisplay(name) {
-        const clubRank = this.getClubRank(name);
+    formatRankDisplay(name, coachSlug) {
+        const athlete = (this.state.athletesData || []).find((a) => a.name === name);
+        const slug = coachSlug || (athlete && athlete.coachSlug) || '';
+        const clubRank = this.getClubRank(name, slug);
         if (!clubRank) return '—';
         const meta = LegionConfig.LEAGUE_META[clubRank.league] || {};
         const attr = this.escapeHtmlAttr(name);
@@ -918,7 +1144,11 @@ const LegionCore = {
 
     renderHistoryBlock(name) {
         const limit = LegionConfig.HISTORY_PER_ATHLETE || 50;
-        const personHistory = this.getHistory().filter(e => e.name === name).slice(-limit).reverse();
+        const normName = this.normalizePersonName(name);
+        const personHistory = this.getHistory()
+            .filter(e => this.normalizePersonName(e.name) === normName)
+            .slice(-limit)
+            .reverse();
         if (personHistory.length === 0) return '<p>Нет записей об изменениях.</p>';
         const exNames = {};
         LegionConfig.EXERCISES.forEach(ex => {
@@ -1091,13 +1321,15 @@ const LegionCore = {
             console.error('Окно рангов не найдено — залейте modals-coach.php или modals-club.php на сервер.');
             return;
         }
-        const clubRank = this.getClubRank(name);
+        const athlete = (this.state.athletesData || []).find((a) => a.name === name);
+        const slug = athlete && athlete.coachSlug ? athlete.coachSlug : '';
+        const clubRank = this.getClubRank(name, slug);
         if (!clubRank) return;
         if (typeof LegionUI === 'undefined' || typeof LegionUI.renderRankModal !== 'function') {
             console.error('Не загружен legion-ui.js');
             return;
         }
-        const marks = this.lookupRankMarks(name);
+        const marks = this.lookupRankMarks(name, slug);
         titleEl.textContent = name;
         contentEl.innerHTML = LegionUI.renderRankModal(name, clubRank, marks);
         modal.classList.add('active');

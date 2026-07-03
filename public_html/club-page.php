@@ -12,6 +12,7 @@ $legionVer = legion_asset_version();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Общий рейтинг Легиона Силы</title>
     <link rel="icon" href="/images/legion-logo.png">
+    <?php require __DIR__ . '/legion-head-fonts.php'; ?>
     <link rel="stylesheet" href="/css/legion.css?v=<?php echo (int)$legionVer; ?>">
 </head>
 <body data-legion-page="club">
@@ -57,9 +58,9 @@ $legionVer = legion_asset_version();
 
     <?php require __DIR__ . '/modals-club.php'; ?>
     <?php require __DIR__ . '/scripts-legion.php'; ?>
-    <script src="/js/legion-club.js?v=<?php echo (int)$legionVer; ?>"></script>
+    <script src="/js/legion-club.js?v=<?php echo (int)$legionVer; ?>" defer onerror="(function(){var c=document.getElementById('content');if(c)c.innerHTML='<p class=error>Не найден js/legion-club.js — залейте файл на сервер.</p>';})()"></script>
     <script>
-    (function () {
+    document.addEventListener('DOMContentLoaded', function () {
         var content = document.getElementById('content');
         function showError(msg) {
             if (content) content.innerHTML = '<p class="error">' + msg + '</p>';
@@ -74,7 +75,7 @@ $legionVer = legion_asset_version();
         } catch (e) {
             showError('Ошибка: ' + (e.message || e));
         }
-    })();
+    });
     </script>
 </body>
 </html>

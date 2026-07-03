@@ -43,22 +43,14 @@ const LegionClubPage = {
     async syncBackgroundData() {
         await Promise.allSettled([
             LegionCore.loadHistoryFromServer(),
-            LegionCore.loadAchievementsFromServer(),
-            LegionCore.loadLastResultsFromServer(this.lastResultsScope)
+            LegionCore.loadAchievementsFromServer()
         ]);
         await Promise.allSettled([
-            LegionCore.migrateAchievementsFromLocalStorage(),
-            LegionCore.migrateLastResultsFromLocalStorage(this.lastResultsScope, 'clubLastResults')
+            LegionCore.migrateAchievementsFromLocalStorage()
         ]);
 
         const athletesData = LegionCore.state.athletesData;
-        const lastResults = LegionCore.getLastResults();
-        if (athletesData.length > 0 && Object.keys(lastResults).length > 0) {
-            LegionCore.compareAndRecordHistory(lastResults, athletesData);
-        }
-        if (athletesData.length > 0) {
-            LegionCore.setLastResults(this.lastResultsScope, LegionCore.snapshotCurrentResults(athletesData));
-        }
+        await LegionCore.processResultHistoryChanges(athletesData, this.lastResultsScope);
 
         LegionCore.updateAllAchievements();
         this.updateClubStats();
@@ -71,8 +63,11 @@ const LegionClubPage = {
         const contentDiv = document.getElementById('content');
         if (!contentDiv) return;
 
-        const athletesData = await LegionCore.loadAllAthletes();
-        const rankData = await LegionCore.loadRanks(athletesData);
+        const [athletesData, rankDataRaw] = await Promise.all([
+            LegionCore.loadAllAthletes(),
+            LegionCore.loadRanks()
+        ]);
+        const rankData = await LegionCore.ensureRankCoverage(athletesData, rankDataRaw);
 
         LegionCore.state.athletesData = athletesData;
         LegionCore.applyRankData(rankData, athletesData);
@@ -281,7 +276,7 @@ const LegionClubPage = {
             .sort((a, b) => b.total - a.total);
         const coachRank = coachGroup.findIndex(a => a.name === name) + 1;
         const overallRank = athlete.overallRank || '?';
-        const clubRank = LegionCore.getClubRank(name);
+        const clubRank = LegionCore.getClubRank(name, athlete.coachSlug);
         const isClubElite = this.isClubElite(athlete);
 
         LegionUI.applyPhotoFrame(document.getElementById('modal-photo-frame'), clubRank, false, isClubElite);

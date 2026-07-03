@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/coaches.php';
 require_once __DIR__ . '/diagnostics_lib.php';
+require_once __DIR__ . '/sheets_cache_lib.php';
 
 function legion_normalize_person_name($name) {
     $name = str_replace("\xC2\xA0", ' ', (string) $name);
@@ -91,16 +92,8 @@ function legion_parse_rank_csv_entries($text) {
     return $entries;
 }
 
-function legion_get_coach_result_names($coach) {
-    if (empty($coach['csvUrl'])) {
-        return array();
-    }
-    $fetch = legion_diagnostics_fetch_url($coach['csvUrl']);
-    if (!$fetch['ok']) {
-        return array();
-    }
-
-    $text = preg_replace('/^\xEF\xBB\xBF/', '', $fetch['body']);
+function legion_get_coach_result_names_from_body($body) {
+    $text = preg_replace('/^\xEF\xBB\xBF/', '', (string) $body);
     $lines = preg_split('/\r\n|\r|\n/', trim($text));
     if (count($lines) < 2) {
         return array();
@@ -134,6 +127,20 @@ function legion_get_coach_result_names($coach) {
         }
     }
     return $names;
+}
+
+function legion_get_coach_result_names($coach, $resultsBodies = null) {
+    if (empty($coach['csvUrl'])) {
+        return array();
+    }
+    if (is_array($resultsBodies) && isset($resultsBodies[$coach['csvUrl']]) && $resultsBodies[$coach['csvUrl']]['ok']) {
+        return legion_get_coach_result_names_from_body($resultsBodies[$coach['csvUrl']]['body']);
+    }
+    $fetch = legion_fetch_sheet_cached($coach['csvUrl']);
+    if (!$fetch['ok']) {
+        return array();
+    }
+    return legion_get_coach_result_names_from_body($fetch['body']);
 }
 
 function legion_merge_coach_rank_entries($entries, $coachNames) {
@@ -176,6 +183,28 @@ function legion_load_all_ranks() {
     $merged = array();
     $coachesStats = array();
 
+    $rankUrls = array();
+    $resultUrls = array();
+    foreach ($coaches as $slug => $coach) {
+        if (!empty($coach['ranksCsvUrl'])) {
+            $rankUrls[] = $coach['ranksCsvUrl'];
+        }
+        if (!empty($coach['csvUrl'])) {
+            $resultUrls[] = $coach['csvUrl'];
+        }
+    }
+
+    $rankUrls = array_values(array_unique($rankUrls));
+    $resultUrls = array_values(array_unique($resultUrls));
+
+    $fetched = array();
+    if (!empty($resultUrls)) {
+        $fetched = array_merge($fetched, legion_fetch_sheets_parallel($resultUrls, null, true));
+    }
+    if (!empty($rankUrls)) {
+        $fetched = array_merge($fetched, legion_fetch_sheets_parallel($rankUrls, null, false));
+    }
+
     foreach ($coaches as $slug => $coach) {
         $stat = array(
             'slug' => $slug,
@@ -192,15 +221,16 @@ function legion_load_all_ranks() {
             continue;
         }
 
-        $fetch = legion_diagnostics_fetch_url($coach['ranksCsvUrl']);
-        if (!$fetch['ok']) {
-            $stat['error'] = $fetch['error'];
+        if (!isset($fetched[$coach['ranksCsvUrl']]) || !$fetched[$coach['ranksCsvUrl']]['ok']) {
+            $stat['error'] = isset($fetched[$coach['ranksCsvUrl']]['error'])
+                ? $fetched[$coach['ranksCsvUrl']]['error']
+                : 'Не удалось загрузить таблицу рангов';
             $coachesStats[] = $stat;
             continue;
         }
 
-        $entries = legion_parse_rank_csv_entries($fetch['body']);
-        $coachNames = legion_get_coach_result_names($coach);
+        $entries = legion_parse_rank_csv_entries($fetched[$coach['ranksCsvUrl']]['body']);
+        $coachNames = legion_get_coach_result_names($coach, $fetched);
         $coachRanks = legion_merge_coach_rank_entries($entries, $coachNames);
         $withMarks = 0;
 
@@ -209,7 +239,15 @@ function legion_load_all_ranks() {
             if (legion_count_rank_marks($marks) > 0) {
                 $withMarks++;
             }
-            $merged[$name] = $marks;
+            $key = legion_normalize_person_name($name);
+            if ($key === '') {
+                continue;
+            }
+            $scopedKey = $slug . ':' . $key;
+            $merged[$scopedKey] = $marks;
+            if (!isset($merged[$key]) || legion_count_rank_marks($marks) > legion_count_rank_marks($merged[$key])) {
+                $merged[$key] = $marks;
+            }
         }
 
         $stat['withMarks'] = $withMarks;

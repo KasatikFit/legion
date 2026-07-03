@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+require_once __DIR__ . '/storage_lib.php';
+
 $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 
@@ -19,7 +21,6 @@ if (!$data || !isset($data['entries']) || !is_array($data['entries'])) {
     exit;
 }
 
-// Ограничение: последние N записей на каждого спортсмена
 define('HISTORY_PER_ATHLETE', 50);
 
 function trim_history_per_athlete(array $entries, int $limit = HISTORY_PER_ATHLETE): array {
@@ -49,21 +50,14 @@ function trim_history_per_athlete(array $entries, int $limit = HISTORY_PER_ATHLE
 }
 
 $historyFile = __DIR__ . '/history.json';
-
-// Читаем существующую историю
-$existing = [];
-if (file_exists($historyFile)) {
-    $content = file_get_contents($historyFile);
-    $existing = json_decode($content, true) ?: [];
-}
-
-// Добавляем новые записи
+$existing = storage_read_json($historyFile, []);
 $existing = array_merge($existing, $data['entries']);
-
-// Оставляем последние N записей на каждого спортсмена
 $existing = trim_history_per_athlete($existing);
 
-// Сохраняем
-file_put_contents($historyFile, json_encode($existing, JSON_UNESCAPED_UNICODE));
+if (!storage_write_json($historyFile, $existing)) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Не удалось сохранить историю']);
+    exit;
+}
 
 echo json_encode(['success' => true, 'count' => count($data['entries'])]);

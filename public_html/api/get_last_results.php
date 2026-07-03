@@ -16,4 +16,9 @@ $file = __DIR__ . '/last_results.json';
 $all = storage_read_json($file, []);
 $data = isset($all[$scope]) && is_array($all[$scope]) ? $all[$scope] : [];
 
+$merge = isset($_GET['merge']) && ($_GET['merge'] === '1' || $_GET['merge'] === 'true');
+if ($merge && $scope === 'global') {
+    $data = storage_merge_last_results($all);
+}
+
 echo json_encode($data, JSON_UNESCAPED_UNICODE);
