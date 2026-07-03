@@ -3,8 +3,6 @@
  * Список тренеров приходит с сервера (api/coaches.php → window.LegionCoachesFromServer).
  */
 const LegionConfig = {
-    RANKS_CSV_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=2130784782&single=true&output=csv',
-
     API: {
         historySave: '/api/save_history.php',
         historyLoad: '/api/get_history.php',
@@ -14,7 +12,8 @@ const LegionConfig = {
         eliteSave: '/api/save_elite.php',
         lastResultsLoad: '/api/get_last_results.php',
         lastResultsSave: '/api/save_last_results.php',
-        rotationPassword: '/api/verify_rotation_password.php'
+        rotationPassword: '/api/verify_rotation_password.php',
+        ranksLoad: '/api/get_ranks.php'
     },
 
     ACHIEVEMENTS_SCOPE: 'global',

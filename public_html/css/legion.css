@@ -670,6 +670,66 @@ table:not(.rating-table) {
     line-height: 1.45;
 }
 
+.rotation-status {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(200, 16, 46, 0.04);
+    border: 1px solid rgba(200, 16, 46, 0.1);
+}
+
+.rotation-status-line {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    color: var(--text);
+}
+
+.rotation-status-line + .rotation-status-line {
+    margin-top: 6px;
+}
+
+.rotation-panel-actions {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    min-width: 200px;
+}
+
+.rotation-password-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.rotation-password-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.rotation-password-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    color: var(--text);
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rotation-password-input:focus {
+    outline: none;
+    border-color: rgba(200, 16, 46, 0.45);
+    box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.12);
+}
+
 .rotation-btn {
     position: relative;
     flex-shrink: 0;
@@ -1856,6 +1916,7 @@ table:not(.rating-table) {
         padding: 16px;
     }
     .rotation-panel-icon { margin: 0 auto; }
+    .rotation-panel-actions { min-width: 0; width: 100%; }
     .rotation-btn { width: 100%; }
     .hall-hero { flex-direction: column; text-align: center; padding: 16px; }
     .hall-hero-icon { margin: 0 auto; }
@@ -2184,4 +2245,154 @@ table:not(.rating-table) {
     .guide-exercise-list {
         columns: 1;
     }
+}
+
+/* Предупреждения при частичной загрузке */
+.legion-warnings {
+    margin: 0 0 16px;
+}
+
+.legion-warnings-inner {
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid #f59e0b;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    color: #92400e;
+}
+
+.legion-warnings-title {
+    margin: 0 0 8px;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.legion-warnings-list {
+    margin: 0 0 8px;
+    padding-left: 1.2rem;
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.legion-warnings-hint {
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.legion-warnings-hint a {
+    color: #b45309;
+    font-weight: 600;
+}
+
+/* Диагностика */
+.diag-page .diag-main {
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.diag-summary {
+    margin-bottom: 28px;
+}
+
+.diag-meta {
+    margin: 0 0 14px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.diag-summary-cards {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.diag-summary-card {
+    flex: 1;
+    min-width: 100px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid var(--border);
+    background: #fff;
+}
+
+.diag-summary-num {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.diag-summary-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
+.diag-summary-card.diag-ok .diag-summary-num { color: #047857; }
+.diag-summary-card.diag-warn .diag-summary-num { color: #b45309; }
+.diag-summary-card.diag-error .diag-summary-num { color: #b91c1c; }
+
+.diag-hint {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.diag-hint--ok { background: #ecfdf5; color: #047857; }
+.diag-hint--warn { background: #fffbeb; color: #b45309; }
+.diag-hint--error { background: #fef2f2; color: #b91c1c; }
+
+.diag-section {
+    margin-bottom: 28px;
+}
+
+.diag-section h2 {
+    margin-top: 0;
+}
+
+.diag-table td:last-child {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+}
+
+.diag-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.diag-badge.diag-ok {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.diag-badge.diag-warn {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.diag-badge.diag-error {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.diag-notes ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    line-height: 1.55;
+}
+
+.diag-notes code {
+    font-size: 0.85em;
+    background: var(--bg-elevated);
+    padding: 1px 6px;
+    border-radius: 4px;
 }

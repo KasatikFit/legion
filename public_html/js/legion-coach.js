@@ -25,6 +25,7 @@ const LegionCoachPage = {
         LegionCore.bindCommonGlobals();
         this.bindGlobals();
         LegionCore.initPageUI(() => this.renderCurrentTab());
+        this.updateRotationPanelInfo();
         this.startPage();
     },
 
@@ -106,6 +107,7 @@ const LegionCoachPage = {
     setElite(list) {
         this.serverElite = list;
         this.saveEliteToServer();
+        this.updateRotationPanelInfo();
     },
 
     getLastRotationMonth() {
@@ -115,6 +117,7 @@ const LegionCoachPage = {
     setLastRotationMonth(month) {
         this.serverLastRotationMonth = month;
         this.saveEliteToServer();
+        this.updateRotationPanelInfo();
     },
 
     async migrateEliteFromLocalStorage() {
@@ -143,6 +146,80 @@ const LegionCoachPage = {
         return LegionCore.verifyRotationPassword(password);
     },
 
+    formatRotationMonth(ym) {
+        if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return null;
+        const [year, month] = ym.split('-').map(Number);
+        const names = [
+            'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+            'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'
+        ];
+        if (month < 1 || month > 12) return null;
+        return `${names[month - 1]} ${year}`;
+    },
+
+    formatNextRotationDate(ym) {
+        let nextYear;
+        let nextMonth;
+        if (ym && /^\d{4}-\d{2}$/.test(ym)) {
+            const [year, month] = ym.split('-').map(Number);
+            nextMonth = month === 12 ? 1 : month + 1;
+            nextYear = month === 12 ? year + 1 : year;
+        } else {
+            const now = new Date();
+            nextMonth = now.getMonth() + 2;
+            nextYear = now.getFullYear();
+            while (nextMonth > 12) {
+                nextMonth -= 12;
+                nextYear += 1;
+            }
+        }
+        return `1 ${this.getMonthNameGenitive(nextMonth)} ${nextYear}`;
+    },
+
+    getMonthNameGenitive(month) {
+        const names = [
+            'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+        ];
+        return names[month - 1] || '';
+    },
+
+    updateRotationPanelInfo() {
+        const statusEl = document.getElementById('rotation-status');
+        if (!statusEl) return;
+
+        try {
+            const lastMonth = this.getLastRotationMonth();
+            const currentMonth = new Date().toISOString().slice(0, 7);
+            const lastLabel = this.formatRotationMonth(lastMonth);
+            const nextDate = this.formatNextRotationDate(lastMonth);
+            const eliteCount = this.getElite().length;
+
+            let autoLine = `Следующая автоматическая ротация: <strong>${nextDate}</strong> (начало месяца).`;
+            if (lastMonth && currentMonth > lastMonth) {
+                autoLine = 'Наступил новый месяц — <strong>автоматическая ротация выполняется при загрузке страницы</strong>.';
+            }
+
+            statusEl.innerHTML = `
+                <p class="rotation-status-line">Последняя ротация: <strong>${lastLabel || 'ещё не проводилась'}</strong></p>
+                <p class="rotation-status-line">${autoLine}</p>
+                <p class="rotation-status-line">Текущая элита: <strong>${eliteCount}</strong> спортсменов (топ-10 по баллам в группе).</p>
+            `;
+        } catch (e) {
+            console.warn('Ошибка обновления панели ротации:', e);
+        }
+    },
+
+    getRotationPasswordInput() {
+        const input = document.getElementById('rotation-password');
+        return input ? String(input.value || '').trim() : '';
+    },
+
+    clearRotationPasswordInput() {
+        const input = document.getElementById('rotation-password');
+        if (input) input.value = '';
+    },
+
     // ---------- Загрузка данных ----------
 
     filterCoachAthletes(athletesData) {
@@ -159,13 +236,11 @@ const LegionCoachPage = {
         try {
             contentDiv.innerHTML = '<p class="note">Загрузка данных из Google Таблиц…</p>';
 
-            const [athletesData, rankData] = await Promise.all([
-                LegionCore.loadAllAthletes(),
-                LegionCore.loadRanks()
-            ]);
+            const athletesData = await LegionCore.loadAllAthletes();
+            const rankData = await LegionCore.loadRanks(athletesData);
 
-            LegionCore.state.rankData = rankData;
             LegionCore.state.athletesData = athletesData;
+            LegionCore.applyRankData(rankData, athletesData);
             LegionCore.calculateAllRatings(athletesData);
             LegionCore.state.overallSorted = LegionCore.sortByTotal([...athletesData]);
             LegionCore.state.overallSorted.forEach((a, idx) => {
@@ -175,6 +250,12 @@ const LegionCoachPage = {
 
             this.coachAthletes = this.filterCoachAthletes(athletesData);
             if (this.coachAthletes.length === 0) {
+                const coachWarning = (LegionCore.state.loadWarnings || []).find(
+                    w => w.slug === this.coach.slug || w.coach === this.coach.name
+                );
+                if (coachWarning) {
+                    throw new Error(`${coachWarning.message} (группа «${this.coach.name}»)`);
+                }
                 throw new Error(`У тренера «${this.coach.name}» нет спортсменов в таблицах. Проверьте api/coaches.php и Google Таблицу.`);
             }
 
@@ -189,6 +270,7 @@ const LegionCoachPage = {
             }
 
             LegionCore.updateAllAchievements();
+            LegionCore.renderLoadWarnings();
             this.renderCurrentTab();
 
             this.syncBackgroundData(athletesData).catch((e) => {
@@ -229,6 +311,7 @@ const LegionCoachPage = {
 
         LegionCore.updateAllAchievements();
         this.renderCurrentTab();
+        this.updateRotationPanelInfo();
 
         try {
             await this.checkAutoRotation();
@@ -236,6 +319,7 @@ const LegionCoachPage = {
             console.warn('Ошибка автоматической ротации:', e);
         }
 
+        this.updateRotationPanelInfo();
         LegionCore.refreshOpenAthleteModal();
     },
 
@@ -264,13 +348,17 @@ const LegionCoachPage = {
 
     async rotateLeagues(bypassPassword = false) {
         if (!bypassPassword) {
-            const password = prompt('Введите пароль для ручной ротации:');
+            let password = this.getRotationPasswordInput();
+            if (!password) {
+                password = prompt('Введите пароль для ручной ротации:');
+            }
             if (!password) return;
             const valid = await this.verifyRotationPassword(password);
             if (!valid) {
                 alert('Неверный пароль!');
                 return;
             }
+            this.clearRotationPasswordInput();
         }
         if (this.coachSorted.length === 0) {
             alert('Сначала загрузите рейтинг!');
@@ -287,6 +375,7 @@ const LegionCoachPage = {
                 this.setElite(newElite);
                 this.setLastRotationMonth(currentMonth);
                 this.renderCurrentTab();
+                this.updateRotationPanelInfo();
                 LegionCore.renderRotationLog([], [], newElite, {
                     out: 'Вылетели из элиты',
                     up: 'Поднялись в элиту',
@@ -305,6 +394,7 @@ const LegionCoachPage = {
             this.setElite(finalElite);
             this.setLastRotationMonth(currentMonth);
             this.renderCurrentTab();
+            this.updateRotationPanelInfo();
             LegionCore.renderRotationLog(out, up, finalElite, {
                 out: 'Вылетели из элиты',
                 up: 'Поднялись в элиту',

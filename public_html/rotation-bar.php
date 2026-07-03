@@ -10,19 +10,28 @@
                     </svg>
                 </div>
                 <div class="rotation-panel-text">
-                    <h3 class="rotation-panel-title"><?php echo htmlspecialchars($rotationTitle ?? 'Ротация лиг'); ?></h3>
-                    <p class="rotation-panel-hint"><?php echo htmlspecialchars($rotationHint ?? 'Элита обновляется автоматически в начале месяца. Здесь можно провести ротацию вручную — потребуется пароль.'); ?></p>
+                    <h3 class="rotation-panel-title"><?php echo htmlspecialchars($rotationTitle ?? 'Ротация элиты'); ?></h3>
+                    <p class="rotation-panel-hint"><?php echo htmlspecialchars($rotationHint ?? 'Элита группы обновляется автоматически в начале каждого месяца. Ручная ротация — по паролю.'); ?></p>
+                    <div id="rotation-status" class="rotation-status" aria-live="polite">
+                        <p class="rotation-status-line">Загрузка данных о ротации…</p>
+                    </div>
                 </div>
-                <button type="button" class="rotation-btn" id="rotation-btn" onclick="rotateLeagues()">
-                    <span class="rotation-btn-spinner" aria-hidden="true"></span>
-                    <span class="rotation-btn-icon" aria-hidden="true">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M20 12C20 16.4183 16.4183 20 12 20C8.31447 20 5.21994 17.2091 4.27146 13.75M4 12C4 7.58172 7.58172 4 12 4C15.6855 4 18.7801 6.79086 19.7285 10.25" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            <path d="M19 4V10H13M5 20V14H11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </span>
-                    <span class="rotation-btn-label">Провести ротацию</span>
-                </button>
+                <div class="rotation-panel-actions">
+                    <label class="rotation-password-field">
+                        <span class="rotation-password-label">Пароль</span>
+                        <input type="password" id="rotation-password" class="rotation-password-input" autocomplete="off" placeholder="Для ручной ротации">
+                    </label>
+                    <button type="button" class="rotation-btn" id="rotation-btn" onclick="rotateLeagues()">
+                        <span class="rotation-btn-spinner" aria-hidden="true"></span>
+                        <span class="rotation-btn-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 12C20 16.4183 16.4183 20 12 20C8.31447 20 5.21994 17.2091 4.27146 13.75M4 12C4 7.58172 7.58172 4 12 4C15.6855 4 18.7801 6.79086 19.7285 10.25" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M19 4V10H13M5 20V14H11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                        <span class="rotation-btn-label">Провести ротацию</span>
+                    </button>
+                </div>
             </div>
         </div>
         <div id="rotation-log" class="rotation-log" hidden></div>

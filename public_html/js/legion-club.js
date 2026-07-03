@@ -72,10 +72,10 @@ const LegionClubPage = {
         if (!contentDiv) return;
 
         const athletesData = await LegionCore.loadAllAthletes();
-        const rankData = await LegionCore.loadRanks();
+        const rankData = await LegionCore.loadRanks(athletesData);
 
         LegionCore.state.athletesData = athletesData;
-        LegionCore.state.rankData = rankData;
+        LegionCore.applyRankData(rankData, athletesData);
 
         LegionCore.calculateAllRatings(athletesData);
         LegionCore.state.overallSorted = LegionCore.sortByTotal([...athletesData]);
@@ -87,6 +87,7 @@ const LegionClubPage = {
         LegionCore.initExerciseSorted(athletesData);
 
         LegionCore.updateAllAchievements();
+        LegionCore.renderLoadWarnings();
         this.updateClubStats();
         this.renderCurrentTab();
         LegionCore.refreshOpenAthleteModal();

@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__ . '/api/coaches.php';
+require_once __DIR__ . '/legion-version.php';
 $coaches = legion_coaches_config();
 $LEGION_PAGE = 'club';
+$legionVer = legion_asset_version();
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -10,7 +12,7 @@ $LEGION_PAGE = 'club';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Общий рейтинг Легиона Силы</title>
     <link rel="icon" href="/images/legion-logo.png">
-    <link rel="stylesheet" href="/css/legion.css?v=20">
+    <link rel="stylesheet" href="/css/legion.css?v=<?php echo (int)$legionVer; ?>">
 </head>
 <body data-legion-page="club">
     <header class="site-header no-print">
@@ -55,7 +57,7 @@ $LEGION_PAGE = 'club';
 
     <?php require __DIR__ . '/modals-club.php'; ?>
     <?php require __DIR__ . '/scripts-legion.php'; ?>
-    <script src="/js/legion-club.js?v=20"></script>
+    <script src="/js/legion-club.js?v=<?php echo (int)$legionVer; ?>"></script>
     <script>
     (function () {
         var content = document.getElementById('content');

@@ -1,8 +1,9 @@
 <?php
 require_once dirname(__DIR__) . '/api/coaches.php';
+require_once dirname(__DIR__) . '/legion-version.php';
 require_once __DIR__ . '/illustrations.php';
 $coaches = legion_coaches_config();
-$legionVer = 22;
+$legionVer = legion_asset_version();
 $backUrl = '/';
 if (!empty($_GET['from']) && isset($coaches[$_GET['from']])) {
     $backUrl = '/' . rawurlencode($_GET['from']) . '/';
