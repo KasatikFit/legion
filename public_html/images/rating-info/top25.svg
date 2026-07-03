@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label=""-25">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c8102e"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="360" rx="20" fill="#fafbfc" stroke="#e8e8ec"/>
+  <rect x="40" y="28" width="400" height="140" rx="16" fill="url(#g)" opacity=".12" stroke="#c8102e"/>
+  <text x="240" y="68" text-anchor="middle" fill="#c8102e" font-size="22" font-weight="bold" font-family="Arial,sans-serif"><Æ "-25</text>
+  <text x="240" y="96" text-anchor="middle" fill="#5c5c6a" font-size="13" font-family="Arial,sans-serif">-;8B0 538>=0 !8;K</text>
+  <text x="240" y="140" text-anchor="middle" fill="#1a1a22" font-size="28" font-family="Arial,sans-serif">25</text>
+  <rect x="40" y="188" width="400" height="140" rx="16" fill="#fff" stroke="#e8e8ec"/>
+  <text x="240" y="228" text-anchor="middle" fill="#5c5c6a" font-size="14" font-weight="bold" font-family="Arial,sans-serif">=Ë 538>=5@K</text>
+  <text x="240" y="268" text-anchor="middle" fill="#888" font-size="13" font-family="Arial,sans-serif">A 26-3> <5AB0 8 =865</text>
+</svg>

@@ -826,18 +826,6 @@ const LegionCore = {
         modal.classList.remove('active');
     },
 
-    showRatingInfo() {
-        const modal = document.getElementById('infoModal');
-        if (modal) modal.classList.add('active');
-    },
-
-    closeInfoModal(event) {
-        const modal = document.getElementById('infoModal');
-        if (!modal) return;
-        if (event && event.target !== modal) return;
-        modal.classList.remove('active');
-    },
-
     openRankModal(name) {
         const modal = document.getElementById('rankModal');
         const titleEl = document.getElementById('rank-modal-title');
@@ -1024,8 +1012,6 @@ const LegionCore = {
         const self = this;
         window.closeModal = (e) => self.closeModal(e);
         window.closeRankModal = (e) => self.closeRankModal(e);
-        window.showRatingInfo = () => self.showRatingInfo();
-        window.closeInfoModal = (e) => self.closeInfoModal(e);
         window.openRankModal = (name) => self.openRankModal(name);
     }
 };

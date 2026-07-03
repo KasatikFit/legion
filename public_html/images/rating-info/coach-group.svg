@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-label="@C??0 B@5=5@0">
+  <rect width="480" height="320" rx="20" fill="#fafbfc" stroke="#e8e8ec"/>
+  <rect x="40" y="32" width="400" height="120" rx="16" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+  <text x="240" y="62" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="bold" font-family="Arial,sans-serif">=á -;8B0 3@C??K (B>?-10)</text>
+  <circle cx="100" cy="100" r="22" fill="#c8102e" opacity=".15"/><circle cx="180" cy="100" r="22" fill="#c8102e" opacity=".15"/><circle cx="260" cy="100" r="22" fill="#c8102e" opacity=".15"/><circle cx="340" cy="100" r="22" fill="#c8102e" opacity=".15"/>
+  <text x="100" y="106" text-anchor="middle" font-size="20">=á</text><text x="180" y="106" text-anchor="middle" font-size="20">=á</text><text x="260" y="106" text-anchor="middle" font-size="20">=á</text><text x="340" y="106" text-anchor="middle" font-size="20">=á</text>
+  <rect x="40" y="168" width="400" height="120" rx="16" fill="#fff" stroke="#e8e8ec"/>
+  <text x="240" y="198" text-anchor="middle" fill="#5c5c6a" font-size="14" font-weight="bold" font-family="Arial,sans-serif">N18B5;8</text>
+  <circle cx="120" cy="236" r="18" fill="#e8e8ec"/><circle cx="200" cy="236" r="18" fill="#e8e8ec"/><circle cx="280" cy="236" r="18" fill="#e8e8ec"/><circle cx="360" cy="236" r="18" fill="#e8e8ec"/>
+</svg>

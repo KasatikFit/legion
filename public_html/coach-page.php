@@ -12,7 +12,7 @@ $pageTitle = 'Рейтинг — ' . $currentCoach['name'];
 $rotationTitle = 'Ротация элиты';
 $rotationHint = 'Элита группы обновляется автоматически в начале месяца. Ручная ротация — по паролю.';
 $LEGION_PAGE = 'coach';
-$legionVer = 19;
+$legionVer = 20;
 $coachesJson = json_encode(legion_coaches_for_js(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <!DOCTYPE html>
@@ -45,7 +45,7 @@ $coachesJson = json_encode(legion_coaches_for_js(), JSON_UNESCAPED_UNICODE | JSO
                 <?php endforeach; ?>
             </div>
         </div>
-        <span class="nav-tab clickable" onclick="showRatingInfo()">О системе рейтинга</span>
+        <a href="/rating-info/?from=<?php echo htmlspecialchars($currentSlug); ?>" class="nav-tab">О системе рейтинга</a>
     </div>
 
     <?php require __DIR__ . '/search-bar.php'; ?>

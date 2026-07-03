@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label=" 59B8=3 538>=0 !8;K">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff5f5"/>
+      <stop offset="100%" stop-color="#fffaf0"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c8102e"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" rx="24" fill="url(#bg)" stroke="#e8e8ec"/>
+  <rect x="48" y="56" width="544" height="56" rx="12" fill="#fff" stroke="#e0e0e8"/>
+  <circle cx="88" cy="84" r="18" fill="url(#red)"/>
+  <text x="88" y="90" text-anchor="middle" fill="#fff" font-size="18" font-family="Arial,sans-serif" font-weight="bold">1</text>
+  <rect x="120" y="72" width="160" height="12" rx="6" fill="#e8e8ec"/>
+  <rect x="120" y="92" width="100" height="8" rx="4" fill="#f0d8dc"/>
+  <text x="520" y="92" text-anchor="end" fill="#c8102e" font-size="22" font-family="Arial,sans-serif" font-weight="bold">487</text>
+  <text x="520" y="108" text-anchor="end" fill="#888" font-size="11" font-family="Arial,sans-serif">10;;>2</text>
+  <rect x="48" y="132" width="544" height="48" rx="10" fill="#fff" stroke="#eee"/>
+  <rect x="48" y="192" width="544" height="48" rx="10" fill="#fff" stroke="#eee"/>
+  <rect x="48" y="252" width="544" height="48" rx="10" fill="#fff" stroke="#eee"/>
+  <text x="320" y="330" text-anchor="middle" fill="#5c5c6a" font-size="15" font-family="Arial,sans-serif">!8;0 · 8AF8?;8=0 ·  57C;LB0B</text>
+  <path d="M280 350 L320 380 L360 350" fill="none" stroke="#c8102e" stroke-width="3" stroke-linecap="round"/>
+</svg>

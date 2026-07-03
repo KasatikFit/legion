@@ -10,7 +10,7 @@ $LEGION_PAGE = 'club';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Общий рейтинг Легиона Силы</title>
     <link rel="icon" href="/images/legion-logo.png">
-    <link rel="stylesheet" href="/css/legion.css?v=19">
+    <link rel="stylesheet" href="/css/legion.css?v=20">
 </head>
 <body data-legion-page="club">
     <header class="site-header no-print">
@@ -33,7 +33,7 @@ $LEGION_PAGE = 'club';
                 <?php endforeach; ?>
             </div>
         </div>
-        <span class="nav-tab clickable" onclick="showRatingInfo()">О системе рейтинга</span>
+        <a href="/rating-info/" class="nav-tab">О системе рейтинга</a>
     </div>
 
     <?php require __DIR__ . '/search-bar.php'; ?>
@@ -55,7 +55,7 @@ $LEGION_PAGE = 'club';
 
     <?php require __DIR__ . '/modals-club.php'; ?>
     <?php require __DIR__ . '/scripts-legion.php'; ?>
-    <script src="/js/legion-club.js?v=19"></script>
+    <script src="/js/legion-club.js?v=20"></script>
     <script>
     (function () {
         var content = document.getElementById('content');
