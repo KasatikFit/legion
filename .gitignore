@@ -1,0 +1,13 @@
+# Пароли и локальные настройки
+.vscode/sftp.json
+
+# Данные с сервера — не в Git
+public_html/api/*.json
+public_html/api/rotation_config.php
+
+# Локальные утилиты
+tools/
+
+# Системное
+.DS_Store
+Thumbs.db

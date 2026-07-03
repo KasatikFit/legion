@@ -1,0 +1,18 @@
+{
+  "name": "Beget — Легион Силы",
+  "host": "ВАШ_ЛОГИН.beget.tech",
+  "protocol": "sftp",
+  "port": 22,
+  "username": "ВАШ_ЛОГИН",
+  "password": "ВАШ_ПАРОЛЬ_ИЗ_ПАНЕЛИ",
+  "remotePath": "/home/u/ВАШ_ЛОГИН/ваш-домен.ru/public_html",
+  "context": "public_html",
+  "uploadOnSave": true,
+  "useTempFile": false,
+  "ignore": [
+    "**/.vscode/**",
+    "**/tools/**",
+    "api/*.json",
+    "api/rotation_config.php"
+  ]
+}
