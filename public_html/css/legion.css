@@ -392,6 +392,23 @@ h2 {
 
 #modal-progress { margin-top: 12px; }
 
+.modal-progress-block {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.progress-hint {
+    margin: 0 0 12px;
+}
+
+.progress-subtitle {
+    margin: 16px 0 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
 .modal-history-block {
     margin-top: 18px;
     padding-top: 16px;
@@ -817,6 +834,13 @@ table:not(.rating-table) {
     transform: translateY(-1px);
 }
 
+.print-footer {
+    margin-top: 28px;
+    margin-bottom: 40px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
 .coach-label {
     display: inline-block;
     padding: 3px 10px;
@@ -1060,7 +1084,7 @@ table:not(.rating-table) {
     border-radius: var(--radius);
     padding: 14px 10px 12px;
     text-align: center;
-    min-height: 110px;
+    min-height: 128px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1093,8 +1117,32 @@ table:not(.rating-table) {
 }
 
 .ach-card.locked {
-    opacity: 0.45;
-    filter: grayscale(0.85);
+    opacity: 0.42;
+    filter: grayscale(0.9);
+}
+
+.ach-category {
+    margin-bottom: 18px;
+}
+
+.ach-category-title {
+    margin: 0 0 10px;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ach-card-desc {
+    font-size: 0.62rem;
+    line-height: 1.3;
+    color: var(--text-muted);
+    margin-top: 4px;
+    flex: 1;
 }
 
 .ach-card-icon {
@@ -1150,20 +1198,26 @@ table:not(.rating-table) {
 }
 
 .history-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     padding: 10px 12px;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 8px;
-    font-size: 0.88rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
 }
 
-.history-item .arrow { font-size: 1.1em; }
-.history-item .arrow.up { color: #15803d; }
-.history-item .arrow.down { color: #dc2626; }
-.history-item .date { font-size: 0.75em; color: var(--text-muted); margin-left: auto; }
+.history-item-date {
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.history-item-change {
+    font-weight: 700;
+}
+
+.history-item-change--up { color: #15803d; }
+.history-item-change--down { color: #dc2626; }
 
 /* League boxes */
 .league-box {
@@ -1840,52 +1894,13 @@ table:not(.rating-table) {
 }
 
 .hall-feed-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
     max-height: 420px;
     overflow-y: auto;
+    margin-top: 0;
 }
 
-.hall-feed-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-    line-height: 1.4;
-}
-
-.hall-feed-item:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.hall-feed-date {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    white-space: nowrap;
-}
-
-.hall-feed-text {
-    font-size: 0.9rem;
-    color: var(--text);
-}
-
-.hall-feed-text strong {
+.hall-feed-item strong {
     color: var(--red-bright);
-}
-
-@media (min-width: 560px) {
-    .hall-feed-item {
-        flex-direction: row;
-        align-items: baseline;
-        gap: 16px;
-    }
-
-    .hall-feed-date {
-        flex: 0 0 140px;
-    }
 }
 
 /* Print */
@@ -2394,4 +2409,54 @@ table:not(.rating-table) {
     background: var(--bg-elevated);
     padding: 1px 6px;
     border-radius: 4px;
+}
+
+/* Строка результата тренера (вне зачёта) */
+.coach-benchmark-section {
+    margin: 1.25rem 0 1.5rem;
+}
+
+.coach-benchmark-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    margin: 0 0 0.65rem;
+    color: var(--text);
+}
+
+.coach-benchmark-note {
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.rating-table-coach-benchmark {
+    border: 1px dashed var(--border-strong);
+}
+
+.row-coach-benchmark {
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.07), rgba(37, 99, 235, 0.02));
+}
+
+.row-coach-benchmark td {
+    border-top: 1px dashed var(--border-strong);
+}
+
+.coach-profile-row {
+    cursor: pointer;
+}
+
+.coach-profile-row:hover td,
+.coach-profile-row:focus td {
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.coach-profile-row:focus {
+    outline: none;
+}
+
+.coach-benchmark-place {
+    color: var(--text-muted);
+    font-weight: 600;
+    text-align: center;
 }

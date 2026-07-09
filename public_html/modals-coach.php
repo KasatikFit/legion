@@ -9,7 +9,7 @@
                 <h2 id="modal-name"></h2>
                 <p id="modal-league"></p>
             </div>
-            <p>
+            <p id="modal-ranks-row">
                 <strong>Место у тренера:</strong> <span id="modal-rank-coach"></span> |
                 <strong>Общее место:</strong> <span id="modal-rank-overall"></span>
             </p>
@@ -21,7 +21,7 @@
             </div>
             <div id="modal-rank-info" class="modal-rank-info"></div>
             <div id="modal-achievements" class="achievements"></div>
-            <div id="modal-history" class="modal-history-block"></div>
+            <div id="modal-progress" class="modal-progress-block"></div>
         </div>
     </div>
 

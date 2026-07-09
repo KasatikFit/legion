@@ -22,7 +22,7 @@
             </div>
             <div id="modal-rank-info" class="modal-rank-info"></div>
             <div id="modal-achievements" class="achievements"></div>
-            <div id="modal-history" class="modal-history-block"></div>
+            <div id="modal-progress" class="modal-progress-block"></div>
         </div>
     </div>
 

@@ -3,7 +3,16 @@
 
 # Данные с сервера — не в Git
 public_html/api/*.json
+public_html/api/data/
 public_html/api/rotation_config.php
+public_html/api/pilot_auth.php
+public_html/api/coach_auth.php
+public_html/api/pilot_db_config.php
+public_html/api/data/*.sqlite
+public_html/images/pilot-athletes/*
+!public_html/images/pilot-athletes/.gitkeep
+public_html/images/coach-athletes/*
+!public_html/images/coach-athletes/.gitkeep
 
 # Локальные утилиты
 tools/

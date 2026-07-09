@@ -1,0 +1,959 @@
+/* Пилотная группа: рейтинг и режим тренировки */
+
+.pilot-page .pilot-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.pilot-page .pilot-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.pilot-page .pilot-nav a:hover {
+    background: var(--surface-hover);
+}
+
+.pilot-page .pilot-nav a.is-active {
+    border-color: var(--red);
+    color: var(--red-bright);
+}
+
+.pilot-badge {
+    display: inline-block;
+    margin: 0 0 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(200, 16, 46, 0.15);
+    color: var(--red-bright);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.pilot-updated {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0 0 16px;
+}
+
+.pilot-page .search-bar {
+    margin: 0 0 16px;
+}
+
+/* --- Training mode --- */
+
+.pilot-training {
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.pilot-training-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.pilot-training-status {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    min-height: 1.2em;
+}
+
+.pilot-training-status.is-ok { color: #22c55e; }
+.pilot-training-status.is-error { color: #ef4444; }
+.pilot-training-status.is-saving { color: var(--gold); }
+
+.pilot-exercise-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.pilot-exercise-tab {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.pilot-exercise-tab.is-active {
+    border-color: var(--red);
+    background: rgba(200, 16, 46, 0.12);
+    color: var(--red-bright);
+    font-weight: 600;
+}
+
+.pilot-training-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+}
+
+.pilot-training-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 320px;
+}
+
+.pilot-training-table th,
+.pilot-training-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.pilot-training-table th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+}
+
+.pilot-training-table tr:last-child td {
+    border-bottom: none;
+}
+
+.pilot-training-table .col-name {
+    min-width: 140px;
+    font-weight: 600;
+}
+
+.pilot-training-table .col-was {
+    width: 64px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.pilot-training-table .col-input {
+    width: 88px;
+}
+
+.pilot-training-table .col-delta {
+    width: 56px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.pilot-training-table .col-delta.is-up { color: #22c55e; }
+.pilot-training-table .col-delta.is-down { color: #ef4444; }
+
+.pilot-result-input {
+    width: 100%;
+    max-width: 80px;
+    padding: 10px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.pilot-result-input:focus {
+    outline: none;
+    border-color: var(--red);
+    box-shadow: 0 0 0 2px rgba(200, 16, 46, 0.2);
+}
+
+.pilot-add-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.pilot-add-row input[type="text"] {
+    flex: 1 1 200px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text);
+}
+
+.pilot-btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.pilot-btn:hover {
+    background: var(--surface-hover);
+}
+
+.pilot-btn--primary {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+    font-weight: 600;
+}
+
+.pilot-btn--primary:hover {
+    background: var(--red-bright);
+}
+
+.pilot-btn--danger {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.pilot-btn--ghost {
+    background: transparent;
+}
+
+.pilot-login-card {
+    max-width: 360px;
+    margin: 40px auto;
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.pilot-login-card h2 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+}
+
+.pilot-login-card p {
+    margin: 0 0 20px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.pilot-login-card input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.pilot-remove-btn {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+}
+
+/* --- Mode tabs (results / ranks) --- */
+
+.pilot-mode-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.pilot-mode-tab {
+    flex: 1;
+    max-width: 200px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pilot-mode-tab.is-active {
+    border-color: var(--red);
+    background: rgba(200, 16, 46, 0.12);
+    color: var(--red-bright);
+}
+
+.pilot-training-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* --- Ranks admin --- */
+
+.pilot-rank-league-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.pilot-rank-league-tab {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.pilot-rank-league-tab.is-active {
+    border-color: var(--gold);
+    background: rgba(234, 179, 8, 0.12);
+    color: var(--gold);
+    font-weight: 600;
+}
+
+.pilot-rank-hint {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.pilot-search-wrap {
+    margin: 0 0 16px;
+}
+
+.pilot-search-wrap .search-bar {
+    margin: 0;
+}
+
+.pilot-training-table-wrap--ranks {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.pilot-ranks-table {
+    min-width: 900px;
+    font-size: 0.82rem;
+}
+
+.pilot-ranks-table th,
+.pilot-ranks-table td {
+    padding: 8px 6px;
+    vertical-align: middle;
+    text-align: center;
+}
+
+.pilot-ranks-table .sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--surface);
+    text-align: left;
+    min-width: 120px;
+    max-width: 160px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
+}
+
+.pilot-ranks-table thead .sticky-col {
+    background: var(--bg-elevated);
+    z-index: 3;
+}
+
+.pilot-ranks-table .col-rank-league-h,
+.pilot-ranks-table .col-rank-league {
+    min-width: 72px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.pilot-ranks-table .col-rank-title-h,
+.pilot-ranks-table .col-rank-title {
+    min-width: 100px;
+    text-align: left;
+    font-size: 0.8rem;
+}
+
+.pilot-ranks-table .col-rank-progress-h,
+.pilot-ranks-table .col-rank-progress {
+    min-width: 48px;
+    font-weight: 600;
+    color: var(--gold);
+}
+
+.pilot-ranks-table .col-rank-num {
+    min-width: 36px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+}
+
+.pilot-ranks-table .col-rank-ex,
+.pilot-ranks-table .col-rank-ex-group {
+    min-width: 52px;
+    max-width: 76px;
+    font-size: 0.62rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    line-height: 1.15;
+    white-space: normal;
+    word-break: break-word;
+    vertical-align: bottom;
+    padding: 4px 3px;
+    background: var(--bg-elevated);
+}
+
+.pilot-ranks-table .col-rank-ex-group {
+    max-width: none;
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+.pilot-rank-cell-ex {
+    display: block;
+    font-size: 0.58rem;
+    line-height: 1.1;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+    max-width: 52px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pilot-rank-empty {
+    padding: 24px 16px !important;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.pilot-ranks-table .col-rank-label {
+    min-width: 72px;
+    max-width: 88px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pilot-ranks-table .col-rank-norm,
+.pilot-ranks-table .col-rank-rankname-h {
+    min-width: 120px;
+    max-width: 160px;
+    text-align: left;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.pilot-rank-check-cell {
+    padding: 4px 2px !important;
+}
+
+.pilot-rank-check-cell.is-done {
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.pilot-rank-check-cell.is-next {
+    background: rgba(200, 16, 46, 0.1);
+}
+
+.pilot-rank-check-label {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pilot-rank-check {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.pilot-rank-check-ui {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 2px solid var(--border-strong);
+    background: var(--bg);
+    font-size: 1rem;
+    line-height: 1;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.pilot-rank-check:checked + .pilot-rank-check-ui {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+
+.pilot-rank-check:checked + .pilot-rank-check-ui::before {
+    content: '✓';
+    font-weight: 700;
+}
+
+.pilot-rank-check:disabled + .pilot-rank-check-ui {
+    opacity: 0.5;
+}
+
+.pilot-rank-row--complete .col-rank-league {
+    color: #22c55e;
+    font-weight: 600;
+}
+
+.pilot-rank-league-tab[data-league="auto"].is-active {
+    border-color: var(--red);
+    background: rgba(200, 16, 46, 0.12);
+    color: var(--red-bright);
+}
+
+.pilot-import-panel {
+    margin: 12px 0 20px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+}
+
+.pilot-import-note {
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.pilot-import-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+    font-size: 0.88rem;
+}
+
+.pilot-import-field input,
+.pilot-import-field select {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.92rem;
+}
+
+.pilot-import-check {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 14px 0;
+    font-size: 0.86rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.pilot-import-actions {
+    margin-top: 8px;
+}
+
+.pilot-import-status {
+    margin: 12px 0 0;
+    font-size: 0.9rem;
+}
+
+.pilot-import-status--ok {
+    color: #16a34a;
+}
+
+.pilot-import-status--error {
+    color: var(--red-bright);
+}
+
+.pilot-import-status--saving {
+    color: var(--text-muted);
+}
+
+.pilot-import-status--saving {
+    color: var(--text-muted);
+}
+
+.pilot-photos-panel {
+    margin: 12px 0 20px;
+}
+
+.pilot-photos-note {
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.pilot-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.pilot-photo-card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg-elevated);
+    text-align: center;
+}
+
+.pilot-photo-frame {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 10px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--border-strong);
+    background: var(--bg);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pilot-photo-frame .pilot-avatar-slot--card {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.pilot-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.pilot-photo-name {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    line-height: 1.3;
+}
+
+.pilot-photo-badge {
+    display: inline-block;
+    margin-bottom: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.pilot-photo-badge--own {
+    color: #16a34a;
+    border-color: rgba(22, 163, 74, 0.35);
+}
+
+.pilot-photo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pilot-photo-actions .pilot-btn {
+    width: 100%;
+}
+
+.pilot-photos-empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px 12px;
+}
+
+.pilot-row-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.pilot-avatar-slot {
+    position: relative;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--border-strong);
+    background: var(--bg-elevated);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pilot-avatar-slot--row {
+    width: 44px;
+    height: 44px;
+}
+
+.pilot-avatar-slot--card {
+    width: 100%;
+    height: 100%;
+}
+
+.pilot-avatar-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.pilot-avatar-slot img.is-broken {
+    display: none;
+}
+
+.pilot-avatar-emoji {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+.pilot-avatar-slot--card .pilot-avatar-emoji {
+    font-size: 3rem;
+}
+
+.pilot-avatar-slot img.is-broken + .pilot-avatar-emoji,
+.photo-frame img.is-broken + .pilot-avatar-emoji--modal {
+    display: inline-flex;
+}
+
+.pilot-avatar-emoji--modal {
+    position: absolute;
+    inset: 0;
+    font-size: 3.5rem;
+    background: var(--bg-elevated);
+}
+
+.pilot-row-photo {
+    width: 100%;
+    height: 100%;
+}
+
+.pilot-plus-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0;
+    border-radius: 12px;
+    border: 2px solid var(--red);
+    background: rgba(200, 16, 46, 0.12);
+    color: var(--red-bright);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.pilot-plus-btn:active {
+    background: rgba(200, 16, 46, 0.28);
+    transform: scale(0.96);
+}
+
+.pilot-training-table .col-plus {
+    width: 56px;
+    text-align: center;
+    padding: 4px;
+}
+
+.pilot-modal-achievements {
+    margin-top: 16px;
+}
+
+.pilot-ach-note {
+    margin: 0 0 12px;
+    font-size: 0.82rem;
+}
+
+.pilot-history-toolbar {
+    margin-bottom: 12px;
+}
+
+.pilot-history-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.88rem;
+    max-width: 320px;
+}
+
+.pilot-history-filter select {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.pilot-history-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 24px 12px !important;
+}
+
+.col-history-date {
+    white-space: nowrap;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    width: 140px;
+}
+
+.col-history-text {
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.col-history-actions {
+    width: 52px;
+    text-align: center;
+}
+
+.pilot-history-ex {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.pilot-history-btn {
+    padding: 6px 8px;
+    margin-right: 4px;
+}
+
+.pilot-training-table .col-actions {
+    white-space: nowrap;
+    width: 88px;
+}
+
+.pilot-history-delete {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+/* legacy slot styles removed — grid uses checkboxes */
+
+.pilot-rating-table .pilot-athlete-row {
+    cursor: pointer;
+}
+
+.pilot-rating-table .pilot-athlete-row:hover {
+    background: var(--surface-hover);
+}
+
+.pilot-tap-hint {
+    margin-top: 12px;
+}
+
+.pilot-coach-panel {
+    margin-top: 8px;
+}
+
+.pilot-coach-note {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    margin: 0 0 12px;
+}
+
+.pilot-coach-name {
+    font-family: var(--font-display);
+    margin: 0 0 1rem;
+    font-size: 1.35rem;
+}
+
+.pilot-coach-section {
+    margin-bottom: 1.5rem;
+}
+
+.pilot-coach-section h4 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+}
+
+.pilot-coach-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.pilot-coach-result-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.9rem;
+}
+
+.pilot-coach-result-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    font-size: 1.05rem;
+    background: var(--bg-elevated);
+    color: var(--text);
+}
+
+.pilot-coach-ranks-wrap {
+    margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+    .pilot-rank-check-label {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .pilot-rank-check-ui {
+        width: 36px;
+        height: 36px;
+    }
+
+    .pilot-ranks-table .sticky-col {
+        min-width: 76px;
+    }
+    .pilot-training-table th,
+    .pilot-training-table td {
+        padding: 10px 8px;
+    }
+
+    .pilot-result-input {
+        font-size: 1.2rem;
+        padding: 12px 8px;
+    }
+}

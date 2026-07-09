@@ -8,32 +8,44 @@ function legion_coaches_config() {
         'yakutin' => array(
             'name' => 'Якутин Иван',
             'tagline' => 'Группа тренера',
+            'storage' => 'mysql',
             'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=999564821&single=true&output=csv',
             'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=2106158359&single=true&output=csv',
         ),
         'nikonov' => array(
             'name' => 'Никонов Никита',
             'tagline' => 'Группа тренера',
+            'storage' => 'mysql',
             'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=2018595165&single=true&output=csv',
             'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1177372140&single=true&output=csv',
         ),
         'kasatkin' => array(
             'name' => 'Касаткин Алексей',
             'tagline' => 'Группа тренера',
+            'storage' => 'mysql',
             'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=0&single=true&output=csv',
             'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=2130784782&single=true&output=csv',
         ),
         'parkhaev' => array(
             'name' => 'Пархаев Алексей',
             'tagline' => 'Группа тренера',
+            'storage' => 'mysql',
             'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1103251903&single=true&output=csv',
             'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1582437394&single=true&output=csv',
         ),
         'makarenkov' => array(
             'name' => 'Макаренков Артём',
             'tagline' => 'Группа тренера',
+            'storage' => 'mysql',
             'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=573257096&single=true&output=csv',
             'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=287377539&single=true&output=csv',
+        ),
+        'kostin' => array(
+            'name' => 'Костин Алексей',
+            'tagline' => 'Группа тренера',
+            'storage' => 'mysql',
+            'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1438794797&single=true&output=csv',
+            'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1572172467&single=true&output=csv',
         ),
     );
 }
@@ -46,9 +58,20 @@ function legion_coaches_for_js() {
             'name' => $coach['name'],
             'csvUrl' => $coach['csvUrl'],
             'ranksCsvUrl' => isset($coach['ranksCsvUrl']) ? $coach['ranksCsvUrl'] : '',
+            'storage' => isset($coach['storage']) ? $coach['storage'] : 'mysql',
         );
     }
     return $list;
+}
+
+/** Группа хранится в MySQL (режим тренировки + рейтинг с сервера). */
+function legion_coach_uses_mysql($slug) {
+    $coaches = legion_coaches_config();
+    if (!isset($coaches[$slug])) {
+        return false;
+    }
+    $storage = isset($coaches[$slug]['storage']) ? $coaches[$slug]['storage'] : 'mysql';
+    return $storage === 'mysql';
 }
 
 function legion_coach_nav_icon() {

@@ -51,6 +51,7 @@ function legion_parse_results_csv($text) {
 
     $minCols = max(array_merge(array($nameIdx, $photoIdx >= 0 ? $photoIdx : $nameIdx), array_values($colIdx))) + 1;
     $rows = array();
+    $isFirstDataRow = true;
 
     for ($i = 1; $i < count($lines); $i++) {
         $cols = array_map('trim', explode(',', $lines[$i]));
@@ -76,6 +77,10 @@ function legion_parse_results_csv($text) {
             $row[$ex['key']] = (float) $val;
         }
         if ($valid) {
+            if ($isFirstDataRow) {
+                $row['isCoach'] = true;
+                $isFirstDataRow = false;
+            }
             $rows[] = $row;
         }
     }
@@ -86,7 +91,7 @@ function legion_parse_results_csv($text) {
 /**
  * @return array{athletes:array,warnings:array}
  */
-function legion_load_all_athletes($coachSlugFilter = null) {
+function legion_load_all_athletes($coachSlugFilter = null, array $prefetched = null) {
     $coaches = legion_coaches_config();
     $urls = array();
     $urlMeta = array();
@@ -105,8 +110,13 @@ function legion_load_all_athletes($coachSlugFilter = null) {
         );
     }
 
-    $fetched = legion_fetch_sheets_parallel($urls);
+    if ($prefetched !== null) {
+        $fetched = $prefetched;
+    } else {
+        $fetched = legion_fetch_sheets_parallel($urls);
+    }
     $athletes = array();
+    $coachBenchmarks = array();
     $warnings = array();
 
     foreach ($urlMeta as $url => $meta) {
@@ -141,12 +151,17 @@ function legion_load_all_athletes($coachSlugFilter = null) {
         foreach ($parsed as $row) {
             $row['coach'] = $meta['name'];
             $row['coachSlug'] = $meta['slug'];
+            if (!empty($row['isCoach'])) {
+                $coachBenchmarks[$meta['slug']] = $row;
+                continue;
+            }
             $athletes[] = $row;
         }
     }
 
     return array(
         'athletes' => $athletes,
+        'coachBenchmarks' => $coachBenchmarks,
         'warnings' => $warnings,
     );
 }

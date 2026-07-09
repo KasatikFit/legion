@@ -295,6 +295,8 @@ function legion_diagnostics_run() {
         'api/diagnostics_lib.php',
         'api/ranks_lib.php',
         'api/get_ranks.php',
+        'api/get_page_data.php',
+        'api/page_data_lib.php',
         'diagnostics/index.php',
     );
 
@@ -310,9 +312,15 @@ function legion_diagnostics_run() {
     $checks[] = array('group' => 'Файлы', 'items' => $fileItems);
 
     $rotationPath = $root . '/api/rotation_config.php';
+    $cronConfigPath = $root . '/api/cron_config.php';
     $checks[] = array(
-        'group' => 'Ротация',
+        'group' => 'Ротация и снимки',
         'items' => array(
+            array(
+                'name' => 'api/cron_config.php',
+                'status' => is_file($cronConfigPath) ? 'ok' : 'warn',
+                'detail' => is_file($cronConfigPath) ? 'настроен' : 'не найден — ежедневный снимок не запустится',
+            ),
             array(
                 'name' => 'api/rotation_config.php',
                 'status' => is_file($rotationPath) ? 'ok' : 'warn',
@@ -322,7 +330,7 @@ function legion_diagnostics_run() {
     );
 
     $apiDir = $root . '/api';
-    $jsonFiles = array('elite.json', 'history.json', 'achievements.json', 'last_results.json');
+    $jsonFiles = array('elite.json', 'history.json', 'rank_history.json', 'last_ranks.json', 'achievements.json', 'last_results.json', 'snapshot_meta.json');
     $jsonItems = array();
     foreach ($jsonFiles as $file) {
         $path = $apiDir . '/' . $file;
@@ -339,6 +347,29 @@ function legion_diagnostics_run() {
         );
     }
     $checks[] = array('group' => 'Данные API', 'items' => $jsonItems);
+
+    require_once __DIR__ . '/sheets_cache_lib.php';
+    legion_sheets_cache_ensure_dir();
+    $cacheDir = LEGION_SHEETS_CACHE_DIR;
+    $cacheWritable = is_dir($cacheDir) && is_writable($cacheDir);
+    $cacheFiles = is_dir($cacheDir) ? glob($cacheDir . '/*.json') : array();
+    $checks[] = array(
+        'group' => 'Кэш Google Таблиц',
+        'items' => array(
+            array(
+                'name' => 'api/cache/sheets/',
+                'status' => $cacheWritable ? 'ok' : 'error',
+                'detail' => $cacheWritable
+                    ? 'запись разрешена, файлов: ' . count($cacheFiles)
+                    : 'нет каталога или нет прав — каждый визит ждёт Google',
+            ),
+            array(
+                'name' => 'TTL кэша таблиц',
+                'status' => 'ok',
+                'detail' => LEGION_SHEETS_CACHE_TTL . ' сек (свежий), до ' . LEGION_SHEETS_CACHE_STALE_MAX . ' сек при сбое Google',
+            ),
+        ),
+    );
 
     $coaches = legion_coaches_config();
     $coachItems = array();

@@ -43,14 +43,13 @@ const LegionClubPage = {
     async syncBackgroundData() {
         await Promise.allSettled([
             LegionCore.loadHistoryFromServer(),
+            LegionCore.loadRankHistoryFromServer(),
+            LegionCore.loadSnapshotMetaFromServer(),
             LegionCore.loadAchievementsFromServer()
         ]);
         await Promise.allSettled([
             LegionCore.migrateAchievementsFromLocalStorage()
         ]);
-
-        const athletesData = LegionCore.state.athletesData;
-        await LegionCore.processResultHistoryChanges(athletesData, this.lastResultsScope);
 
         LegionCore.updateAllAchievements();
         this.updateClubStats();
@@ -63,11 +62,7 @@ const LegionClubPage = {
         const contentDiv = document.getElementById('content');
         if (!contentDiv) return;
 
-        const [athletesData, rankDataRaw] = await Promise.all([
-            LegionCore.loadAllAthletes(),
-            LegionCore.loadRanks()
-        ]);
-        const rankData = await LegionCore.ensureRankCoverage(athletesData, rankDataRaw);
+        const { athletes: athletesData, rankData } = await LegionCore.loadPageData();
 
         LegionCore.state.athletesData = athletesData;
         LegionCore.applyRankData(rankData, athletesData);
@@ -302,7 +297,7 @@ const LegionClubPage = {
             rankInfoDiv.innerHTML = LegionUI.renderRankSummaryCard(name, clubRank);
         }
 
-        LegionCore.fillAthleteModalExtras(name, athlete, { showProgress: false });
+        LegionCore.fillAthleteModalExtras(name, athlete);
         modal.classList.add('active');
     },
 

@@ -3,8 +3,10 @@
 require_once __DIR__ . '/diagnostics_lib.php';
 
 define('LEGION_SHEETS_CACHE_DIR', __DIR__ . '/cache/sheets');
-define('LEGION_SHEETS_CACHE_TTL', 90);
-define('LEGION_SHEETS_CACHE_STALE_MAX', 600);
+/** Свежий кэш (сек) — без повторного запроса к Google */
+define('LEGION_SHEETS_CACHE_TTL', 300);
+/** Устаревший кэш при ошибке Google (сек) */
+define('LEGION_SHEETS_CACHE_STALE_MAX', 3600);
 
 function legion_sheets_cache_ensure_dir() {
     if (!is_dir(LEGION_SHEETS_CACHE_DIR)) {

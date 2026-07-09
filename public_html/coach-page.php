@@ -48,6 +48,7 @@ $coachesJson = json_encode(legion_coaches_for_js(), JSON_UNESCAPED_UNICODE | JSO
             </div>
         </div>
         <a href="/rating-info/?from=<?php echo htmlspecialchars($currentSlug); ?>" class="nav-tab">О системе рейтинга</a>
+        <a href="/<?php echo htmlspecialchars($currentSlug); ?>/training.php" class="nav-tab">Режим тренировки</a>
     </div>
 
     <?php require __DIR__ . '/search-bar.php'; ?>

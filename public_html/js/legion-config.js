@@ -14,7 +14,10 @@ const LegionConfig = {
         lastResultsSave: '/api/save_last_results.php',
         rotationPassword: '/api/verify_rotation_password.php',
         ranksLoad: '/api/get_ranks.php',
-        athletesLoad: '/api/get_athletes.php'
+        athletesLoad: '/api/get_athletes.php',
+        pageDataLoad: '/api/get_page_data.php',
+        snapshotMetaLoad: '/api/get_snapshot_meta.php',
+        rankHistoryLoad: '/api/get_rank_history.php'
     },
 
     ACHIEVEMENTS_SCOPE: 'global',

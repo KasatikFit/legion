@@ -16,9 +16,9 @@ const LegionUI = {
     },
 
     getAchievementRarity(id) {
-        if (id === 'top1') return 'legendary';
-        if (id.startsWith('ex_top1_')) return 'epic';
-        if (id === 'top3' || id === 'top25') return 'rare';
+        if (id === 'top1' || id === 'record_club' || id === 'rank_gold_done') return 'legendary';
+        if (id.startsWith('ex_top1_') || id === 'beat_coach_3' || id === 'rank_silver_done') return 'epic';
+        if (id === 'top3' || id === 'top25' || id === 'beat_coach_1' || id === 'rank_bronze_done') return 'rare';
         return 'common';
     },
 
@@ -38,22 +38,44 @@ const LegionUI = {
         return '<span class="ach-emoji">🏅</span>';
     },
 
+    formatAchievementDate(dateStr) {
+        if (!dateStr) return '';
+        const iso = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) {
+            return `${iso[3]}.${iso[2]}.${iso[1]}`;
+        }
+        return String(dateStr);
+    },
+
     renderAchievementGrid(achievements) {
-        const earned = achievements.filter(a => a.active).length;
+        const earned = achievements.filter((a) => a.active).length;
         let html = `<h3 class="section-title">Достижения <span class="ach-count">${earned} / ${achievements.length}</span></h3>`;
-        html += '<div class="ach-grid">';
-        achievements.forEach(a => {
-            const rarity = this.getAchievementRarity(a.id);
-            const cls = a.active ? `ach-card active ach-${rarity}` : `ach-card locked ach-${rarity}`;
-            const title = this.stripHtml(a.text);
-            html += `<div class="${cls}" title="${a.desc}">
-                <div class="ach-card-icon">${this.extractIconHtml(a.text)}</div>
-                <div class="ach-card-title">${title}</div>
-                <div class="ach-card-date">${a.date || '—'}</div>
-                ${!a.active ? '<div class="ach-card-lock" aria-hidden="true">🔒</div>' : ''}
-            </div>`;
+
+        const categories = (typeof LegionCore !== 'undefined' && LegionCore.getAchievementCategories)
+            ? LegionCore.getAchievementCategories()
+            : [{ id: 'rating', title: 'Достижения' }];
+
+        categories.forEach((cat) => {
+            const items = achievements.filter((a) => (a.category || 'rating') === cat.id);
+            if (!items.length) return;
+            const catEarned = items.filter((a) => a.active).length;
+            html += `<div class="ach-category"><h4 class="ach-category-title">${cat.title} <span class="ach-count">${catEarned}/${items.length}</span></h4>`;
+            html += '<div class="ach-grid">';
+            items.forEach((a) => {
+                const rarity = this.getAchievementRarity(a.id);
+                const cls = a.active ? `ach-card active ach-${rarity}` : `ach-card locked ach-${rarity}`;
+                const title = this.stripHtml(a.text);
+                const dateLabel = a.active ? this.formatAchievementDate(a.date) : '—';
+                html += `<div class="${cls}" title="${a.desc}">
+                    <div class="ach-card-icon">${this.extractIconHtml(a.text)}</div>
+                    <div class="ach-card-title">${title}</div>
+                    <div class="ach-card-desc">${a.desc}</div>
+                    <div class="ach-card-date">${dateLabel}</div>
+                </div>`;
+            });
+            html += '</div></div>';
         });
-        html += '</div>';
+
         html += '<p class="ach-legend">Яркие карточки — получены · Серые — ещё впереди</p>';
         return html;
     },
@@ -143,9 +165,12 @@ const LegionUI = {
         </div>`;
     },
 
-    renderProgressCharts(athleteName, history, athlete) {
+    renderProgressCharts(athleteName, history, athlete, options) {
+        const opts = options || {};
+        const showHeading = opts.showHeading !== false;
         let hasAny = false;
-        let html = '<h3 class="section-title">Прогресс</h3><div class="progress-grid">';
+        let html = showHeading ? '<h3 class="section-title">Прогресс</h3>' : '';
+        html += '<div class="progress-grid">';
         LegionConfig.EXERCISES.forEach(ex => {
             const series = this.buildExerciseSeries(athleteName, ex.key, history, athlete[ex.key]);
             if (series.length > 0) hasAny = true;
@@ -153,7 +178,8 @@ const LegionUI = {
         });
         html += '</div>';
         if (!hasAny) {
-            return '<h3 class="section-title">Прогресс</h3><p class="note">Пока нет данных для графика — они появятся после изменений результатов.</p>';
+            const empty = '<p class="note">Пока нет точек для графика — они появятся после первых зафиксированных изменений.</p>';
+            return showHeading ? html + empty : empty;
         }
         return html;
     },
@@ -182,18 +208,14 @@ const LegionUI = {
         if (!breaks || breaks.length === 0) {
             html += '<p class="hall-feed-empty note">Пока нет зафиксированных рекордов — они появятся после улучшения результатов в рейтинге.</p>';
         } else {
-            html += '<ul class="hall-feed-list">';
-            breaks.forEach(b => {
-                const change = b.oldVal > 0
-                    ? `${b.oldVal} → <strong>${b.newVal}</strong>`
-                    : `<strong>${b.newVal}</strong>`;
-                const verb = b.oldVal > 0 ? 'побил рекорд' : 'установил рекорд';
-                html += `<li class="hall-feed-item">
-                    <span class="hall-feed-date">${b.date}</span>
-                    <span class="hall-feed-text">${this.formatHallAthlete(b.name)} ${verb} в ${b.exerciseLabel}: ${change}</span>
-                </li>`;
+            html += '<div class="history-list hall-feed-list">';
+            breaks.forEach((b, idx) => {
+                const line = (typeof LegionCore !== 'undefined' && LegionCore.formatHallRecordLine)
+                    ? LegionCore.formatHallRecordLine(b, idx)
+                    : `${b.date} ${b.name}`;
+                html += `<div class="history-item hall-feed-item">${line}</div>`;
             });
-            html += '</ul>';
+            html += '</div>';
         }
 
         html += '</section>';

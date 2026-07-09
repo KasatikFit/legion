@@ -116,6 +116,7 @@ function legion_get_coach_result_names_from_body($body) {
     }
 
     $names = array();
+    $skippedCoachRow = false;
     for ($i = 1; $i < count($lines); $i++) {
         $cols = array_map('trim', explode(',', $lines[$i]));
         if (!isset($cols[$nameIdx])) {
@@ -123,6 +124,10 @@ function legion_get_coach_result_names_from_body($body) {
         }
         $name = legion_normalize_person_name($cols[$nameIdx]);
         if ($name !== '') {
+            if (!$skippedCoachRow) {
+                $skippedCoachRow = true;
+                continue;
+            }
             $names[] = $name;
         }
     }
@@ -178,31 +183,24 @@ function legion_count_rank_marks($marks) {
     return $count;
 }
 
-function legion_load_all_ranks() {
+function legion_load_all_ranks(array $prefetched = null) {
     $coaches = legion_coaches_config();
     $merged = array();
     $coachesStats = array();
 
-    $rankUrls = array();
-    $resultUrls = array();
-    foreach ($coaches as $slug => $coach) {
-        if (!empty($coach['ranksCsvUrl'])) {
-            $rankUrls[] = $coach['ranksCsvUrl'];
+    if ($prefetched !== null) {
+        $fetched = $prefetched;
+    } else {
+        $urls = array();
+        foreach ($coaches as $coach) {
+            if (!empty($coach['ranksCsvUrl'])) {
+                $urls[] = $coach['ranksCsvUrl'];
+            }
+            if (!empty($coach['csvUrl'])) {
+                $urls[] = $coach['csvUrl'];
+            }
         }
-        if (!empty($coach['csvUrl'])) {
-            $resultUrls[] = $coach['csvUrl'];
-        }
-    }
-
-    $rankUrls = array_values(array_unique($rankUrls));
-    $resultUrls = array_values(array_unique($resultUrls));
-
-    $fetched = array();
-    if (!empty($resultUrls)) {
-        $fetched = array_merge($fetched, legion_fetch_sheets_parallel($resultUrls, null, true));
-    }
-    if (!empty($rankUrls)) {
-        $fetched = array_merge($fetched, legion_fetch_sheets_parallel($rankUrls, null, false));
+        $fetched = legion_fetch_sheets_parallel(array_values(array_unique($urls)));
     }
 
     foreach ($coaches as $slug => $coach) {
