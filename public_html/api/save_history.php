@@ -10,7 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-require_once __DIR__ . '/storage_lib.php';
 require_once __DIR__ . '/history_lib.php';
 
 $input = file_get_contents('php://input');
@@ -22,15 +21,10 @@ if (!$data || !isset($data['entries']) || !is_array($data['entries'])) {
     exit;
 }
 
-$historyFile = __DIR__ . '/history.json';
-$existing = storage_read_json($historyFile, []);
-$existing = array_merge($existing, $data['entries']);
-$existing = legion_trim_history_per_athlete($existing);
-
-if (!storage_write_json($historyFile, $existing)) {
+try {
+    $count = legion_append_history_entries($data['entries']);
+    echo json_encode(['success' => true, 'count' => $count]);
+} catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Не удалось сохранить историю']);
-    exit;
+    echo json_encode(['error' => $e->getMessage()]);
 }
-
-echo json_encode(['success' => true, 'count' => count($data['entries'])]);

@@ -4,7 +4,8 @@
  * Хранилище пилотной группы в БД (SQLite по умолчанию или MySQL через pilot_db_config.php).
  */
 
-define('LEGION_PILOT_DB_SCHEMA_VERSION', 2);
+define('LEGION_PILOT_DB_SCHEMA_VERSION', 5);
+define('LEGION_PILOT_RANK_HISTORY_PER_ATHLETE', 50);
 
 function legion_pilot_db_config() {
     static $config = null;
@@ -113,6 +114,7 @@ function legion_pilot_db_init_schema(PDO $pdo, $driver) {
                 coach_slug VARCHAR(64) NOT NULL DEFAULT 'pilot-demo',
                 name VARCHAR(255) NOT NULL,
                 photo VARCHAR(512) NOT NULL DEFAULT '',
+                birthdate DATE NULL,
                 created_at DATETIME NOT NULL,
                 UNIQUE KEY uq_pilot_athletes_coach_name (coach_slug, name)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -162,6 +164,22 @@ function legion_pilot_db_init_schema(PDO $pdo, $driver) {
                     REFERENCES pilot_athletes (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS pilot_rank_history (
+                id VARCHAR(32) NOT NULL PRIMARY KEY,
+                athlete_id INT UNSIGNED NOT NULL,
+                event VARCHAR(32) NOT NULL,
+                mark_index SMALLINT UNSIGNED NULL,
+                old_val TINYINT UNSIGNED NULL,
+                new_val TINYINT UNSIGNED NULL,
+                created_at DATETIME NOT NULL,
+                KEY idx_pilot_rank_history_athlete (athlete_id, created_at),
+                CONSTRAINT fk_pilot_rank_history_athlete FOREIGN KEY (athlete_id)
+                    REFERENCES pilot_athletes (id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+        require_once __DIR__ . '/club_storage_lib.php';
+        legion_club_storage_init_schema($pdo, 'mysql');
         return;
     }
 
@@ -177,6 +195,7 @@ function legion_pilot_db_init_schema(PDO $pdo, $driver) {
             coach_slug TEXT NOT NULL DEFAULT 'pilot-demo',
             name TEXT NOT NULL,
             photo TEXT NOT NULL DEFAULT '',
+            birthdate TEXT NULL,
             created_at TEXT NOT NULL,
             UNIQUE (coach_slug, name)
         )
@@ -221,7 +240,22 @@ function legion_pilot_db_init_schema(PDO $pdo, $driver) {
             PRIMARY KEY (athlete_id, achievement_id),
             FOREIGN KEY (athlete_id) REFERENCES pilot_athletes(id) ON DELETE CASCADE
         )
-    "    );
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS pilot_rank_history (
+            id TEXT NOT NULL PRIMARY KEY,
+            athlete_id INTEGER NOT NULL,
+            event TEXT NOT NULL,
+            mark_index INTEGER,
+            old_val INTEGER,
+            new_val INTEGER,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (athlete_id) REFERENCES pilot_athletes(id) ON DELETE CASCADE
+        )
+    ");
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_pilot_rank_history_athlete ON pilot_rank_history(athlete_id, created_at)');
+    require_once __DIR__ . '/club_storage_lib.php';
+    legion_club_storage_init_schema($pdo, 'sqlite');
 }
 
 function legion_pilot_db_column_exists(PDO $pdo, $table, $column) {
@@ -265,6 +299,13 @@ function legion_pilot_db_apply_migrations(PDO $pdo, $driver) {
         $legacyUpdated = legion_pilot_db_meta_get($pdo, 'updated_at', '');
         if ($legacyUpdated !== '' && legion_pilot_db_meta_get($pdo, 'pilot-demo:updated_at', '') === '') {
             legion_pilot_db_meta_set($pdo, 'pilot-demo:updated_at', $legacyUpdated);
+        }
+    }
+    if (!legion_pilot_db_column_exists($pdo, 'pilot_athletes', 'birthdate')) {
+        if ($driver === 'mysql') {
+            $pdo->exec('ALTER TABLE pilot_athletes ADD COLUMN birthdate DATE NULL AFTER photo');
+        } else {
+            $pdo->exec('ALTER TABLE pilot_athletes ADD COLUMN birthdate TEXT NULL');
         }
     }
     legion_pilot_db_meta_set($pdo, 'schema_version', (string) LEGION_PILOT_DB_SCHEMA_VERSION);
@@ -400,10 +441,13 @@ function legion_pilot_db_import_dataset(PDO $pdo, array $data, $coachSlug = 'pil
     }
 }
 
-function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo') {
+function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo', array $options = array()) {
     if (!legion_pilot_db_ensure_ready($coachSlug)) {
         throw new RuntimeException('База данных пилотной группы недоступна');
     }
+
+    $includeHistory = !array_key_exists('includeHistory', $options) || $options['includeHistory'];
+    $includeAchievements = !array_key_exists('includeAchievements', $options) || $options['includeAchievements'];
 
     $pdo = legion_pilot_db_pdo();
     if (!$pdo) {
@@ -414,7 +458,7 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo') {
     $athletes = array();
     $nameById = array();
 
-    $rowsStmt = $pdo->prepare('SELECT id, name, photo FROM pilot_athletes WHERE coach_slug = ? ORDER BY id ASC');
+    $rowsStmt = $pdo->prepare('SELECT id, name, photo, birthdate FROM pilot_athletes WHERE coach_slug = ? ORDER BY id ASC');
     $rowsStmt->execute(array($coachSlug));
     $rows = $rowsStmt->fetchAll();
     foreach ($rows as $row) {
@@ -423,6 +467,7 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo') {
         $athletes[$id] = array(
             'name' => $row['name'],
             'photo' => (string) $row['photo'],
+            'birthdate' => !empty($row['birthdate']) ? (string) $row['birthdate'] : null,
             'rankMarks' => legion_pilot_default_marks(0, 0, 0),
         );
         foreach ($exercises as $key) {
@@ -468,47 +513,51 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo') {
     }
 
     $history = array();
-    $histStmt = $pdo->prepare('
-        SELECT h.id, h.exercise, h.old_val, h.new_val, h.diff, h.created_at, a.name
-        FROM pilot_history h
-        INNER JOIN pilot_athletes a ON a.id = h.athlete_id
-        WHERE a.coach_slug = ?
-        ORDER BY h.created_at ASC, h.id ASC
-    ');
-    $histStmt->execute(array($coachSlug));
-    while ($r = $histStmt->fetch()) {
-        $history[] = array(
-            'id' => $r['id'],
-            'date' => legion_pilot_db_format_ru_datetime($r['created_at']),
-            'name' => legion_normalize_person_name($r['name']),
-            'exercise' => $r['exercise'],
-            'oldVal' => $r['old_val'] !== null ? (float) $r['old_val'] : null,
-            'newVal' => $r['new_val'] !== null ? (float) $r['new_val'] : null,
-            'diff' => (float) $r['diff'],
-        );
+    if ($includeHistory) {
+        $histStmt = $pdo->prepare('
+            SELECT h.id, h.exercise, h.old_val, h.new_val, h.diff, h.created_at, a.name
+            FROM pilot_history h
+            INNER JOIN pilot_athletes a ON a.id = h.athlete_id
+            WHERE a.coach_slug = ?
+            ORDER BY h.created_at ASC, h.id ASC
+        ');
+        $histStmt->execute(array($coachSlug));
+        while ($r = $histStmt->fetch()) {
+            $history[] = array(
+                'id' => $r['id'],
+                'date' => legion_pilot_db_format_ru_datetime($r['created_at']),
+                'name' => legion_normalize_person_name($r['name']),
+                'exercise' => $r['exercise'],
+                'oldVal' => $r['old_val'] !== null ? (float) $r['old_val'] : null,
+                'newVal' => $r['new_val'] !== null ? (float) $r['new_val'] : null,
+                'diff' => (float) $r['diff'],
+            );
+        }
     }
 
     $achievements = array();
-    $achStmt = $pdo->prepare('
-        SELECT a.name, pa.achievement_id, pa.granted_at
-        FROM pilot_achievements pa
-        INNER JOIN pilot_athletes a ON a.id = pa.athlete_id
-        WHERE a.coach_slug = ?
-        ORDER BY pa.granted_at ASC, pa.achievement_id ASC
-    ');
-    $achStmt->execute(array($coachSlug));
-    while ($r = $achStmt->fetch()) {
-        $name = legion_normalize_person_name($r['name']);
-        if ($name === '') {
-            continue;
+    if ($includeAchievements) {
+        $achStmt = $pdo->prepare('
+            SELECT a.name, pa.achievement_id, pa.granted_at
+            FROM pilot_achievements pa
+            INNER JOIN pilot_athletes a ON a.id = pa.athlete_id
+            WHERE a.coach_slug = ?
+            ORDER BY pa.granted_at ASC, pa.achievement_id ASC
+        ');
+        $achStmt->execute(array($coachSlug));
+        while ($r = $achStmt->fetch()) {
+            $name = legion_normalize_person_name($r['name']);
+            if ($name === '') {
+                continue;
+            }
+            if (!isset($achievements[$name])) {
+                $achievements[$name] = array();
+            }
+            $achievements[$name][] = array(
+                'id' => $r['achievement_id'],
+                'date' => $r['granted_at'],
+            );
         }
-        if (!isset($achievements[$name])) {
-            $achievements[$name] = array();
-        }
-        $achievements[$name][] = array(
-            'id' => $r['achievement_id'],
-            'date' => $r['granted_at'],
-        );
     }
 
     if (!function_exists('legion_coach_meta')) {
@@ -542,8 +591,8 @@ function legion_pilot_db_write_dataset(PDO $pdo, array $data, $touchUpdatedAt = 
 
     $keepIds = array();
     $selectAthlete = $pdo->prepare('SELECT id FROM pilot_athletes WHERE coach_slug = ? AND name = ? LIMIT 1');
-    $insertAthlete = $pdo->prepare('INSERT INTO pilot_athletes (coach_slug, name, photo, created_at) VALUES (?, ?, ?, ?)');
-    $updateAthlete = $pdo->prepare('UPDATE pilot_athletes SET photo = ? WHERE id = ?');
+    $insertAthlete = $pdo->prepare('INSERT INTO pilot_athletes (coach_slug, name, photo, birthdate, created_at) VALUES (?, ?, ?, ?, ?)');
+    $updateAthlete = $pdo->prepare('UPDATE pilot_athletes SET photo = ?, birthdate = ? WHERE id = ?');
 
     $driver = legion_pilot_db_config()['driver'];
     if ($driver === 'mysql') {
@@ -572,14 +621,18 @@ function legion_pilot_db_write_dataset(PDO $pdo, array $data, $touchUpdatedAt = 
         }
         $name = legion_normalize_person_name($row['name']);
         $photo = isset($row['photo']) ? (string) $row['photo'] : '';
+        $birthdate = null;
+        if (isset($row['birthdate']) && $row['birthdate'] !== '' && $row['birthdate'] !== null) {
+            $birthdate = (string) $row['birthdate'];
+        }
 
         $selectAthlete->execute(array($coachSlug, $name));
         $found = $selectAthlete->fetch();
         if ($found) {
             $athleteId = (int) $found['id'];
-            $updateAthlete->execute(array($photo, $athleteId));
+            $updateAthlete->execute(array($photo, $birthdate, $athleteId));
         } else {
-            $insertAthlete->execute(array($coachSlug, $name, $photo, $now));
+            $insertAthlete->execute(array($coachSlug, $name, $photo, $birthdate, $now));
             $athleteId = (int) $pdo->lastInsertId();
         }
         $keepIds[] = $athleteId;
@@ -741,6 +794,188 @@ function legion_pilot_db_status() {
         $status['athletes'] = legion_pilot_db_athlete_count($pdo);
         $status['updatedAt'] = legion_pilot_db_meta_get($pdo, 'updated_at', '');
         $status['migratedFromJson'] = legion_pilot_db_meta_get($pdo, 'migrated_from_json', '') !== '';
+        $status['rankHistoryMigrated'] = legion_pilot_db_meta_get($pdo, 'rank_history_migrated_from_json', '') !== '';
     }
     return $status;
+}
+
+function legion_pilot_db_new_rank_history_id() {
+    if (function_exists('random_bytes')) {
+        return bin2hex(random_bytes(8));
+    }
+    return uniqid('rh', true);
+}
+
+function legion_pilot_db_rank_history_entry_from_row(array $row) {
+    $entry = array(
+        'id' => $row['id'],
+        'date' => legion_pilot_db_format_ru_datetime($row['created_at']),
+        'name' => legion_normalize_person_name($row['name']),
+        'event' => (string) $row['event'],
+    );
+    if ($row['mark_index'] !== null && $row['mark_index'] !== '') {
+        $entry['markIndex'] = (int) $row['mark_index'];
+    }
+    if ($row['old_val'] !== null && $row['old_val'] !== '') {
+        $entry['oldVal'] = (int) $row['old_val'];
+    }
+    if ($row['new_val'] !== null && $row['new_val'] !== '') {
+        $entry['newVal'] = (int) $row['new_val'];
+    }
+    return $entry;
+}
+
+function legion_pilot_db_load_all_rank_history() {
+    $pdo = legion_pilot_db_pdo();
+    if (!$pdo) {
+        return array();
+    }
+    if (!function_exists('legion_normalize_person_name')) {
+        require_once __DIR__ . '/ranks_lib.php';
+    }
+
+    legion_pilot_db_ensure_rank_history_migrated();
+
+    $stmt = $pdo->query('
+        SELECT rh.id, rh.event, rh.mark_index, rh.old_val, rh.new_val, rh.created_at, a.name
+        FROM pilot_rank_history rh
+        INNER JOIN pilot_athletes a ON a.id = rh.athlete_id
+        ORDER BY rh.created_at ASC, rh.id ASC
+    ');
+    $out = array();
+    while ($row = $stmt->fetch()) {
+        $out[] = legion_pilot_db_rank_history_entry_from_row($row);
+    }
+    return $out;
+}
+
+function legion_pilot_db_find_athlete_id_by_name(PDO $pdo, $name) {
+    if (!function_exists('legion_normalize_person_name')) {
+        require_once __DIR__ . '/ranks_lib.php';
+    }
+    $normName = legion_normalize_person_name($name);
+    if ($normName === '') {
+        return 0;
+    }
+    $stmt = $pdo->prepare('SELECT id FROM pilot_athletes WHERE name = ? ORDER BY id ASC LIMIT 1');
+    $stmt->execute(array($normName));
+    $row = $stmt->fetch();
+    return $row ? (int) $row['id'] : 0;
+}
+
+function legion_pilot_db_trim_rank_history_for_athlete(PDO $pdo, $athleteId, $limit = LEGION_PILOT_RANK_HISTORY_PER_ATHLETE) {
+    $athleteId = (int) $athleteId;
+    $limit = (int) $limit;
+    if ($athleteId <= 0 || $limit <= 0) {
+        return;
+    }
+
+    $driver = legion_pilot_db_config()['driver'];
+    if ($driver === 'mysql') {
+        // MySQL не принимает плейсхолдер в OFFSET — значение вшиваем как int.
+        $stmt = $pdo->prepare('
+            SELECT id FROM pilot_rank_history
+            WHERE athlete_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 18446744073709551615 OFFSET ' . $limit . '
+        ');
+        $stmt->execute(array($athleteId));
+    } else {
+        $stmt = $pdo->prepare('
+            SELECT id FROM pilot_rank_history
+            WHERE athlete_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT -1 OFFSET ?
+        ');
+        $stmt->execute(array($athleteId, $limit));
+    }
+
+    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($ids)) {
+        return;
+    }
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $del = $pdo->prepare('DELETE FROM pilot_rank_history WHERE id IN (' . $placeholders . ')');
+    $del->execute($ids);
+}
+
+function legion_pilot_db_append_rank_history_entries(array $entries) {
+    if (count($entries) === 0) {
+        return 0;
+    }
+
+    $pdo = legion_pilot_db_pdo();
+    if (!$pdo) {
+        return 0;
+    }
+    legion_pilot_db_ensure_rank_history_migrated();
+    if (!function_exists('legion_normalize_person_name')) {
+        require_once __DIR__ . '/ranks_lib.php';
+    }
+
+    $insert = $pdo->prepare('
+        INSERT INTO pilot_rank_history (id, athlete_id, event, mark_index, old_val, new_val, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ');
+    $now = legion_pilot_db_now_sql();
+    $affectedAthletes = array();
+    $inserted = 0;
+
+    foreach ($entries as $entry) {
+        if (!is_array($entry) || empty($entry['name']) || empty($entry['event'])) {
+            continue;
+        }
+        $athleteId = legion_pilot_db_find_athlete_id_by_name($pdo, $entry['name']);
+        if ($athleteId <= 0) {
+            continue;
+        }
+        $createdAt = isset($entry['date']) ? legion_pilot_db_parse_ru_datetime($entry['date']) : $now;
+        $markIndex = isset($entry['markIndex']) ? (int) $entry['markIndex'] : null;
+        if ($markIndex !== null && ($markIndex < 0 || $markIndex >= 60)) {
+            $markIndex = null;
+        }
+        $oldVal = isset($entry['oldVal']) ? (int) $entry['oldVal'] : null;
+        $newVal = isset($entry['newVal']) ? (int) $entry['newVal'] : null;
+        $insert->execute(array(
+            isset($entry['id']) ? (string) $entry['id'] : legion_pilot_db_new_rank_history_id(),
+            $athleteId,
+            (string) $entry['event'],
+            $markIndex,
+            $oldVal,
+            $newVal,
+            $createdAt,
+        ));
+        $affectedAthletes[$athleteId] = true;
+        $inserted++;
+    }
+
+    foreach (array_keys($affectedAthletes) as $athleteId) {
+        legion_pilot_db_trim_rank_history_for_athlete($pdo, $athleteId);
+    }
+
+    return $inserted;
+}
+
+function legion_pilot_db_migrate_rank_history_from_json(PDO $pdo) {
+    if (legion_pilot_db_meta_get($pdo, 'rank_history_migrated_from_json', '') !== '') {
+        return false;
+    }
+
+    // Уже проставленные ранги не переносим в историю — только новые события после деплоя.
+    legion_pilot_db_meta_set($pdo, 'rank_history_migrated_from_json', legion_pilot_db_now_sql());
+    return false;
+}
+
+function legion_pilot_db_ensure_rank_history_migrated() {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    $pdo = legion_pilot_db_pdo();
+    if (!$pdo) {
+        return;
+    }
+    legion_pilot_db_migrate_rank_history_from_json($pdo);
 }

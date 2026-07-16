@@ -114,6 +114,11 @@ function legion_append_history_entries(array $entries) {
     if (count($entries) === 0) {
         return 0;
     }
+    if (function_exists('legion_club_storage_enabled') && legion_club_storage_enabled()) {
+        require_once __DIR__ . '/club_storage_lib.php';
+        // История результатов пишется в pilot_history при сохранении в режиме тренировки.
+        return count($entries);
+    }
     $historyFile = __DIR__ . '/history.json';
     $existing = storage_read_json($historyFile, array());
     $existing = array_merge($existing, $entries);
@@ -129,103 +134,29 @@ function legion_save_last_results_snapshot($scope, array $snapshot) {
     if ($scope === null) {
         throw new InvalidArgumentException('Неверный scope');
     }
-    $file = __DIR__ . '/last_results.json';
-    $all = storage_read_json($file, array());
-    $all[$scope] = $snapshot;
-    if (!storage_write_json($file, $all)) {
-        throw new RuntimeException('Не удалось сохранить last_results.json');
-    }
+    require_once __DIR__ . '/club_storage_lib.php';
+    legion_club_save_snapshot($scope, 'results', $snapshot);
 }
 
 function legion_load_last_results_baseline($scope = 'global') {
-    $file = __DIR__ . '/last_results.json';
-    $all = storage_read_json($file, array());
-    $baseline = isset($all[$scope]) && is_array($all[$scope]) ? $all[$scope] : array();
-    if (count($baseline) === 0 && $scope === 'global') {
+    require_once __DIR__ . '/club_storage_lib.php';
+    $baseline = legion_club_load_snapshot($scope, 'results');
+    if (count($baseline) === 0 && $scope === 'global' && !legion_club_storage_enabled()) {
+        $file = __DIR__ . '/last_results.json';
+        $all = storage_read_json($file, array());
         $baseline = storage_merge_last_results($all);
     }
     return $baseline;
 }
 
 function legion_save_snapshot_meta(array $meta) {
-    $path = __DIR__ . '/snapshot_meta.json';
-    storage_write_json($path, $meta);
+    require_once __DIR__ . '/club_storage_lib.php';
+    legion_club_save_snapshot_meta($meta);
 }
 
 function legion_load_snapshot_meta() {
-    return storage_read_json(__DIR__ . '/snapshot_meta.json', array());
-}
-
-/**
- * Ежедневный снимок: загрузка таблиц → сравнение → history.json → last_results.json
- *
- * @return array{success:bool,recorded:int,athletes:int,snapshotAt:string,seeded:bool}
- */
-function legion_run_daily_snapshot($scope = 'global') {
-    require_once __DIR__ . '/results_lib.php';
-
-    $scope = storage_validate_scope($scope);
-    if ($scope === null) {
-        throw new InvalidArgumentException('Неверный scope');
-    }
-
-    $load = legion_load_all_athletes(null);
-    $athletes = isset($load['athletes']) && is_array($load['athletes']) ? $load['athletes'] : array();
-    $snapshot = legion_snapshot_current_results($athletes);
-    $baseline = legion_load_last_results_baseline($scope);
-    $recorded = 0;
-    $rankRecorded = 0;
-    $seeded = false;
-
-    if (count($snapshot) > 0 && count($baseline) === 0) {
-        legion_save_last_results_snapshot($scope, $snapshot);
-        $seeded = true;
-    } elseif (count($snapshot) > 0 && count($baseline) > 0) {
-        $entries = legion_build_history_entries($baseline, $athletes);
-        if (count($entries) > 0) {
-            $recorded = legion_append_history_entries($entries);
-        }
-        legion_save_last_results_snapshot($scope, $snapshot);
-    }
-
-    try {
-        $rankRecorded = legion_process_rank_snapshot($athletes, $scope);
-    } catch (Exception $e) {
-        $rankRecorded = 0;
-    }
-
-    try {
-        require_once __DIR__ . '/page_data_lib.php';
-        legion_warm_rating_cache();
-    } catch (Exception $e) {
-        // не блокируем cron
-    }
-
-    $snapshotAt = legion_history_now_ru();
-    legion_save_snapshot_meta(array(
-        'lastRun' => $snapshotAt,
-        'lastRecorded' => $recorded,
-        'lastRankRecorded' => $rankRecorded,
-        'athletes' => count($athletes),
-        'scope' => $scope,
-    ));
-
-    return array(
-        'success' => true,
-        'recorded' => $recorded,
-        'rankRecorded' => $rankRecorded,
-        'athletes' => count($athletes),
-        'snapshotAt' => $snapshotAt,
-        'seeded' => $seeded,
-    );
-}
-
-function legion_cron_snapshot_key() {
-    $configPath = __DIR__ . '/cron_config.php';
-    if (is_file($configPath)) {
-        require_once $configPath;
-    }
-    return defined('CRON_SNAPSHOT_KEY') ? (string) CRON_SNAPSHOT_KEY : '';
+    require_once __DIR__ . '/club_storage_lib.php';
+    return legion_club_load_snapshot_meta();
 }
 
 function legion_lookup_rank_marks_map($name, $coachSlug, array $merged) {
@@ -327,9 +258,40 @@ function legion_build_rank_history_entries(array $baseline, array $current, $dat
     return $entries;
 }
 
+function legion_log_rank_mark_change($name, $markIndex, $oldVal, $newVal, $date = null) {
+    $oldVal = (int) $oldVal;
+    $newVal = (int) $newVal;
+    if ($oldVal === $newVal) {
+        return;
+    }
+    $markIndex = (int) $markIndex;
+    if ($markIndex < 0 || $markIndex >= 60) {
+        return;
+    }
+    if ($oldVal > 0 && $newVal > 0) {
+        return;
+    }
+    if ($date === null) {
+        $date = legion_history_now_ru();
+    }
+    $entry = array(
+        'date' => $date,
+        'name' => legion_normalize_person_name($name),
+        'event' => $newVal > 0 ? 'mark_pass' : 'mark_revoke',
+        'markIndex' => $markIndex,
+        'oldVal' => $oldVal,
+        'newVal' => $newVal,
+    );
+    legion_append_rank_history_entries(array($entry));
+}
+
 function legion_append_rank_history_entries(array $entries) {
     if (count($entries) === 0) {
         return 0;
+    }
+    if (function_exists('legion_pilot_db_enabled') && legion_pilot_db_enabled()) {
+        require_once __DIR__ . '/pilot_db_lib.php';
+        return legion_pilot_db_append_rank_history_entries($entries);
     }
     $file = __DIR__ . '/rank_history.json';
     $existing = storage_read_json($file, array());
@@ -346,18 +308,13 @@ function legion_save_last_ranks_snapshot($scope, array $snapshot) {
     if ($scope === null) {
         throw new InvalidArgumentException('Неверный scope');
     }
-    $file = __DIR__ . '/last_ranks.json';
-    $all = storage_read_json($file, array());
-    $all[$scope] = $snapshot;
-    if (!storage_write_json($file, $all)) {
-        throw new RuntimeException('Не удалось сохранить last_ranks.json');
-    }
+    require_once __DIR__ . '/club_storage_lib.php';
+    legion_club_save_snapshot($scope, 'ranks', $snapshot);
 }
 
 function legion_load_last_ranks_baseline($scope = 'global') {
-    $file = __DIR__ . '/last_ranks.json';
-    $all = storage_read_json($file, array());
-    return isset($all[$scope]) && is_array($all[$scope]) ? $all[$scope] : array();
+    require_once __DIR__ . '/club_storage_lib.php';
+    return legion_club_load_snapshot($scope, 'ranks');
 }
 
 function legion_process_rank_snapshot(array $athletes, $scope = 'global') {

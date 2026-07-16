@@ -37,11 +37,11 @@ $pageTitle = 'Тренировка — ' . $currentCoach['name'];
         </div>
     </header>
 
-    <nav class="pilot-nav no-print" aria-label="Навигация">
-        <a href="/<?php echo htmlspecialchars($currentSlug); ?>/">Рейтинг группы</a>
-        <a href="/<?php echo htmlspecialchars($currentSlug); ?>/training.php" class="is-active">Режим тренировки</a>
-        <a href="/">← На главную клуба</a>
-    </nav>
+    <?php
+    $legionNavActive = 'training';
+    $legionNavCoachSlug = $currentSlug;
+    require __DIR__ . '/legion-site-nav.php';
+    ?>
 
     <div id="pilot-training-root">
         <div class="pilot-login-card" id="pilot-login-static">

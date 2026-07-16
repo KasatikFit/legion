@@ -13,7 +13,7 @@ function legion_coach_normalize_slug($slug) {
     if ($slug === LEGION_PILOT_DEMO_SLUG) {
         return $slug;
     }
-    $coaches = legion_coaches_config();
+    $coaches = legion_coaches_registry();
     if (!isset($coaches[$slug])) {
         throw new InvalidArgumentException('Неизвестный тренер: ' . $slug);
     }
@@ -30,7 +30,7 @@ function legion_coach_meta($slug) {
             'storage' => 'mysql',
         );
     }
-    $coaches = legion_coaches_config();
+    $coaches = legion_coaches_registry();
     $coach = $coaches[$slug];
     return array(
         'slug' => $slug,

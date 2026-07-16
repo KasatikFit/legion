@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-require_once __DIR__ . '/storage_lib.php';
+require_once __DIR__ . '/club_storage_lib.php';
 
 $input = file_get_contents('php://input');
 $payload = json_decode($input, true);
@@ -28,14 +28,10 @@ if ($scope === null) {
     exit;
 }
 
-$file = __DIR__ . '/last_results.json';
-$all = storage_read_json($file, []);
-$all[$scope] = $payload['data'];
-
-if (!storage_write_json($file, $all)) {
+try {
+    legion_club_save_snapshot($scope, 'results', $payload['data']);
+    echo json_encode(['success' => true]);
+} catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Не удалось сохранить данные']);
-    exit;
+    echo json_encode(['error' => $e->getMessage()]);
 }
-
-echo json_encode(['success' => true]);

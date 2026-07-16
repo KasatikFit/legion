@@ -27,18 +27,14 @@ if (!empty($_GET['from']) && isset($coaches[$_GET['from']])) {
         </div>
     </header>
 
-    <nav class="navbar no-print guide-nav">
-        <a href="<?php echo htmlspecialchars($backUrl); ?>" class="nav-tab">← К рейтингу</a>
-        <a href="/" class="nav-tab">Общий рейтинг</a>
-        <div class="dropdown">
-            <button type="button" class="dropbtn" aria-haspopup="true" aria-expanded="false">Тренеры ▼</button>
-            <div class="dropdown-content">
-                <?php foreach ($coaches as $slug => $coach): ?>
-                <a href="/<?php echo htmlspecialchars($slug); ?>/"><?php echo legion_coach_nav_icon(); ?> <?php echo htmlspecialchars($coach['name']); ?></a>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </nav>
+    <?php
+    $legionNavActive = 'rating-info';
+    $legionNavCoachSlug = '';
+    if (!empty($_GET['from']) && isset($coaches[$_GET['from']])) {
+        $legionNavCoachSlug = (string) $_GET['from'];
+    }
+    require dirname(__DIR__) . '/legion-site-nav.php';
+    ?>
 
     <main class="guide-main">
         <section class="guide-hero">
@@ -157,36 +153,5 @@ if (!empty($_GET['from']) && isset($coaches[$_GET['from']])) {
     <footer class="guide-footer no-print">
         <a href="<?php echo htmlspecialchars($backUrl); ?>" class="guide-back-btn">Вернуться к рейтингу</a>
     </footer>
-
-    <script>
-    (function () {
-        document.querySelectorAll('.dropdown .dropbtn').forEach(function (btn) {
-            var dropdown = btn.closest('.dropdown');
-            var menu = dropdown.querySelector('.dropdown-content');
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                var isOpen = dropdown.classList.contains('open');
-                document.querySelectorAll('.dropdown.open').forEach(function (d) {
-                    d.classList.remove('open');
-                    var b = d.querySelector('.dropbtn');
-                    if (b) b.setAttribute('aria-expanded', 'false');
-                });
-                if (!isOpen) {
-                    dropdown.classList.add('open');
-                    btn.setAttribute('aria-expanded', 'true');
-                }
-            });
-            menu.addEventListener('click', function (e) { e.stopPropagation(); });
-        });
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.dropdown.open').forEach(function (d) {
-                d.classList.remove('open');
-                var b = d.querySelector('.dropbtn');
-                if (b) b.setAttribute('aria-expanded', 'false');
-            });
-        });
-    })();
-    </script>
 </body>
 </html>

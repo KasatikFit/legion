@@ -1,54 +1,10 @@
 <?php
+
 /**
- * Список тренеров клуба — единый источник для PHP и JavaScript.
- * При добавлении тренера — только этот файл (+ папка /{slug}/index.php).
+ * Список тренеров клуба — загрузка из MySQL (таблица legion_coaches).
+ * При первом запуске данные копируются из coaches_legacy.php.
  */
-function legion_coaches_config() {
-    return array(
-        'yakutin' => array(
-            'name' => 'Якутин Иван',
-            'tagline' => 'Группа тренера',
-            'storage' => 'mysql',
-            'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=999564821&single=true&output=csv',
-            'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=2106158359&single=true&output=csv',
-        ),
-        'nikonov' => array(
-            'name' => 'Никонов Никита',
-            'tagline' => 'Группа тренера',
-            'storage' => 'mysql',
-            'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=2018595165&single=true&output=csv',
-            'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1177372140&single=true&output=csv',
-        ),
-        'kasatkin' => array(
-            'name' => 'Касаткин Алексей',
-            'tagline' => 'Группа тренера',
-            'storage' => 'mysql',
-            'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=0&single=true&output=csv',
-            'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=2130784782&single=true&output=csv',
-        ),
-        'parkhaev' => array(
-            'name' => 'Пархаев Алексей',
-            'tagline' => 'Группа тренера',
-            'storage' => 'mysql',
-            'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1103251903&single=true&output=csv',
-            'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1582437394&single=true&output=csv',
-        ),
-        'makarenkov' => array(
-            'name' => 'Макаренков Артём',
-            'tagline' => 'Группа тренера',
-            'storage' => 'mysql',
-            'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=573257096&single=true&output=csv',
-            'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=287377539&single=true&output=csv',
-        ),
-        'kostin' => array(
-            'name' => 'Костин Алексей',
-            'tagline' => 'Группа тренера',
-            'storage' => 'mysql',
-            'csvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1438794797&single=true&output=csv',
-            'ranksCsvUrl' => 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSf6qfw-eRUUYB0zEnlyCh4y0gq731_RdLUT7AJ54ApwaV3N7_4KbFIbOVLlx5u1mpL0NY7M4JbsDjj/pub?gid=1572172467&single=true&output=csv',
-        ),
-    );
-}
+require_once __DIR__ . '/coaches_lib.php';
 
 function legion_coaches_for_js() {
     $list = array();
@@ -64,9 +20,8 @@ function legion_coaches_for_js() {
     return $list;
 }
 
-/** Группа хранится в MySQL (режим тренировки + рейтинг с сервера). */
 function legion_coach_uses_mysql($slug) {
-    $coaches = legion_coaches_config();
+    $coaches = legion_coaches_registry();
     if (!isset($coaches[$slug])) {
         return false;
     }
@@ -83,7 +38,7 @@ function legion_coach_slug_from_script() {
         return $GLOBALS['LEGION_COACH_SLUG'];
     }
 
-    $coaches = legion_coaches_config();
+    $coaches = legion_coaches_registry();
     $uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
     $path = parse_url($uri, PHP_URL_PATH);
     if (!$path) {
@@ -114,7 +69,7 @@ function legion_coach_slug_from_script() {
 }
 
 function legion_valid_storage_scopes($includeGlobal = true) {
-    $scopes = array_keys(legion_coaches_config());
+    $scopes = array_keys(legion_coaches_registry());
     if ($includeGlobal) {
         array_unshift($scopes, 'global');
     }

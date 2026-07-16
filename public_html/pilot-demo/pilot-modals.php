@@ -8,6 +8,7 @@
             <div id="modal-photo-frame" class="photo-frame league-none">
                 <img id="modal-photo" class="athlete-photo" src="" alt="Фото">
             </div>
+            <p id="modal-age" class="modal-athlete-age" hidden></p>
             <h2 id="modal-name"></h2>
             <p id="modal-league"></p>
         </div>

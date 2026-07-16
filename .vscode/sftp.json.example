@@ -13,6 +13,12 @@
     "**/.vscode/**",
     "**/tools/**",
     "api/*.json",
-    "api/rotation_config.php"
+    "api/rotation_config.php",
+    "api/pilot_auth.php",
+    "api/coach_auth.php",
+    "api/admin_auth.php",
+    "api/pilot_db_config.php",
+    "api/data/**",
+    "api/cache/**"
   ]
 }

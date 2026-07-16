@@ -47,9 +47,94 @@ const LegionUI = {
         return String(dateStr);
     },
 
-    renderAchievementGrid(achievements) {
-        const earned = achievements.filter((a) => a.active).length;
-        let html = `<h3 class="section-title">Достижения <span class="ach-count">${earned} / ${achievements.length}</span></h3>`;
+    getAchievementTitle(achievement) {
+        if (achievement.title) return achievement.title;
+        return this.stripHtml(achievement.text);
+    },
+
+    renderAchievementIcon(achievement) {
+        const emoji = achievement.emoji || '🏅';
+        if (achievement.icon) {
+            const icon = String(achievement.icon).replace(/\.png$/i, '.svg');
+            return `<span class="ach-icon-wrap"><img src="/icons/${icon}" alt="" class="ach-icon-img" loading="lazy" onerror="this.parentElement.outerHTML='<span class=\\'ach-emoji\\'>${emoji}</span>'"></span>`;
+        }
+        return this.extractIconHtml(achievement.text);
+    },
+
+    renderAchievementCard(achievement) {
+        const rarity = this.getAchievementRarity(achievement.id);
+        const earned = !!achievement.active;
+        const cls = earned
+            ? `ach-card ach-card--earned active ach-${rarity}`
+            : `ach-card ach-card--locked locked ach-${rarity}`;
+        const title = LegionCore.escapeHtml(this.getAchievementTitle(achievement));
+        const desc = LegionCore.escapeHtml(achievement.desc || '');
+        const dateLabel = earned ? this.formatAchievementDate(achievement.date) : '';
+        const lockHtml = earned ? '' : '<span class="ach-card-lock" aria-hidden="true">🔒</span>';
+
+        return `<div class="${cls}" title="${desc}">
+            ${lockHtml}
+            <div class="ach-card-medal ach-card-medal--${rarity}">
+                <div class="ach-card-icon">${this.renderAchievementIcon(achievement)}</div>
+            </div>
+            <div class="ach-card-title">${title}</div>
+            <div class="ach-card-desc">${desc}</div>
+            ${earned ? `<div class="ach-card-date">${dateLabel}</div>` : '<div class="ach-card-date ach-card-date--locked">Не получено</div>'}
+        </div>`;
+    },
+
+    renderAchievementCardsGrid(items) {
+        if (!items.length) return '';
+        let html = '<div class="ach-grid">';
+        items.forEach((a) => { html += this.renderAchievementCard(a); });
+        html += '</div>';
+        return html;
+    },
+
+    renderAchievementLockedTeaser(locked) {
+        if (!locked.length) return '';
+        let html = `<details class="ach-locked-teaser">
+            <summary class="ach-locked-teaser-summary">Можно ещё получить <span class="ach-count">${locked.length}</span></summary>
+            <div class="ach-locked-teaser-list">`;
+        locked.forEach((a) => {
+            const title = LegionCore.escapeHtml(this.getAchievementTitle(a));
+            const desc = LegionCore.escapeHtml(a.desc || '');
+            html += `<div class="ach-locked-teaser-item">
+                <span class="ach-locked-teaser-icon">${this.renderAchievementIcon(a)}</span>
+                <span class="ach-locked-teaser-body">
+                    <span class="ach-locked-teaser-title">${title}</span>
+                    <span class="ach-locked-teaser-desc">${desc}</span>
+                </span>
+            </div>`;
+        });
+        html += '</div></details>';
+        return html;
+    },
+
+    renderAchievementGrid(achievements, options) {
+        const opts = options || {};
+        const variant = opts.variant || 'full';
+        const showHeading = opts.showHeading !== false;
+        const earned = achievements.filter((a) => a.active);
+        const locked = achievements.filter((a) => !a.active);
+
+        let html = '';
+        if (showHeading) {
+            const countLabel = variant === 'modal'
+                ? `${earned.length}`
+                : `${earned.length} / ${achievements.length}`;
+            html += `<h3 class="section-title">Достижения <span class="ach-count">${countLabel}</span></h3>`;
+        }
+
+        if (variant === 'modal') {
+            if (!earned.length) {
+                html += '<p class="ach-empty">Пока нет достижений — тренируйся и поднимайся в рейтинге!</p>';
+            } else {
+                html += this.renderAchievementCardsGrid(earned);
+            }
+            html += this.renderAchievementLockedTeaser(locked);
+            return html;
+        }
 
         const categories = (typeof LegionCore !== 'undefined' && LegionCore.getAchievementCategories)
             ? LegionCore.getAchievementCategories()
@@ -60,23 +145,11 @@ const LegionUI = {
             if (!items.length) return;
             const catEarned = items.filter((a) => a.active).length;
             html += `<div class="ach-category"><h4 class="ach-category-title">${cat.title} <span class="ach-count">${catEarned}/${items.length}</span></h4>`;
-            html += '<div class="ach-grid">';
-            items.forEach((a) => {
-                const rarity = this.getAchievementRarity(a.id);
-                const cls = a.active ? `ach-card active ach-${rarity}` : `ach-card locked ach-${rarity}`;
-                const title = this.stripHtml(a.text);
-                const dateLabel = a.active ? this.formatAchievementDate(a.date) : '—';
-                html += `<div class="${cls}" title="${a.desc}">
-                    <div class="ach-card-icon">${this.extractIconHtml(a.text)}</div>
-                    <div class="ach-card-title">${title}</div>
-                    <div class="ach-card-desc">${a.desc}</div>
-                    <div class="ach-card-date">${dateLabel}</div>
-                </div>`;
-            });
-            html += '</div></div>';
+            html += this.renderAchievementCardsGrid(items);
+            html += '</div>';
         });
 
-        html += '<p class="ach-legend">Яркие карточки — получены · Серые — ещё впереди</p>';
+        html += '<p class="ach-legend">Яркие медали — получены · Серые — ещё впереди</p>';
         return html;
     },
 
@@ -102,6 +175,54 @@ const LegionUI = {
     updateClubStats(el, stats) {
         if (!el) return;
         el.innerHTML = this.renderClubStats(stats);
+    },
+
+    renderExerciseTabs(container, options) {
+        if (!container || typeof LegionConfig === 'undefined') return;
+        const opts = options || {};
+        const includeHall = opts.includeHall !== false;
+        const activeTab = opts.activeTab || 'overall';
+        const esc = (value) => String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+
+        const mkTab = (id, label) => {
+            const isActive = id === activeTab;
+            return `<div class="tab${isActive ? ' active' : ''}" data-tab="${esc(id)}" role="tab" tabindex="0">${esc(label)}</div>`;
+        };
+
+        let html = mkTab('overall', 'Общий рейтинг');
+        LegionConfig.EXERCISES.forEach((ex) => {
+            html += mkTab(ex.tab, ex.label);
+        });
+        if (includeHall) {
+            html += mkTab('hall', '🏆 Зал славы');
+        }
+        container.innerHTML = html;
+        container.setAttribute('data-tabs-rendered', 'js');
+        this.bindExerciseTabs(container);
+    },
+
+    bindExerciseTabs(container) {
+        if (!container || container.getAttribute('data-tabs-bound') === '1') return;
+        container.setAttribute('data-tabs-bound', '1');
+        container.querySelectorAll('.tab').forEach((tab) => {
+            const activate = () => {
+                const id = tab.getAttribute('data-tab');
+                if (id && typeof window.switchTab === 'function') {
+                    window.switchTab(id);
+                }
+            };
+            tab.addEventListener('click', activate);
+            tab.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    activate();
+                }
+            });
+        });
     },
 
     parseHistoryDate(dateStr) {
@@ -403,5 +524,121 @@ const LegionUI = {
         html += this.renderRankNameLadder(clubRank);
         html += '</div>';
         return html;
+    },
+
+    renderAthleteRankProfile(clubRank, marks) {
+        if (!clubRank) {
+            return '<p class="rank-summary-empty">Данные о рангах пока не загружены. Тренер отметит сданные нормативы в режиме тренировки.</p>';
+        }
+
+        const meta = this.getLeagueMeta(clubRank.league);
+        const progress = LegionCore.getLeagueProgress(marks, clubRank.league);
+        const doneItems = progress.items.filter((item) => item.done);
+        const todoItems = progress.items.filter((item) => !item.done);
+        const remaining = clubRank.total - clubRank.completed;
+
+        let html = `<div class="athlete-rank-profile">
+            <div class="athlete-rank-head athlete-rank-head--${meta.metal}">
+                <span class="athlete-rank-head-icon" aria-hidden="true">${meta.icon}</span>
+                <div class="athlete-rank-head-body">
+                    <div class="athlete-rank-head-league">${meta.label}</div>
+                    <div class="athlete-rank-head-rank">${LegionCore.escapeHtml(clubRank.rankName || 'Начало пути')}</div>
+                    <div class="athlete-rank-head-meta">${clubRank.completed} сдано · ${remaining > 0 ? remaining + ' осталось' : 'лига пройдена'}</div>
+                </div>
+            </div>`;
+
+        if (clubRank.league <= 2) {
+            html += '<div class="athlete-rank-leagues-done">';
+            if (clubRank.league <= 2) {
+                html += '<span class="athlete-rank-league-badge athlete-rank-league-badge--bronze">🥉 Бронза</span>';
+            }
+            if (clubRank.league === 1) {
+                html += '<span class="athlete-rank-league-badge athlete-rank-league-badge--silver">🥈 Серебро</span>';
+            }
+            html += '</div>';
+        }
+
+        if (todoItems.length === 0) {
+            html += '<p class="athlete-rank-all-done">Все нормативы этой лиги сданы — можно переходить дальше.</p>';
+        } else {
+            html += `<div class="athlete-rank-todo-section">
+                <h4 class="athlete-rank-todo-heading">Осталось сдать <span class="athlete-rank-list-count">${todoItems.length}</span></h4>
+                <ol class="athlete-rank-todo-list">`;
+            todoItems.forEach((item, idx) => {
+                const isNext = idx === 0;
+                html += `<li class="athlete-rank-todo-item${isNext ? ' athlete-rank-todo-item--next' : ''}">
+                    <span class="athlete-rank-todo-num">${idx + 1}</span>
+                    <div class="athlete-rank-todo-content">
+                        <span class="athlete-rank-todo-name">${LegionCore.escapeHtml(item.name)}</span>
+                        ${item.description ? `<span class="athlete-rank-todo-desc">${LegionCore.escapeHtml(item.description)}</span>` : ''}
+                        ${isNext ? '<span class="athlete-rank-todo-badge">Следующий</span>' : ''}
+                    </div>
+                </li>`;
+            });
+            html += '</ol></div>';
+        }
+
+        if (doneItems.length > 0) {
+            html += `<details class="athlete-rank-done-details">
+                <summary class="athlete-rank-done-summary">Сдано <span class="athlete-rank-list-count">${doneItems.length}</span></summary>
+                <ul class="athlete-rank-done-list">`;
+            doneItems.forEach((item) => {
+                html += `<li class="athlete-rank-done-item">
+                    <span class="athlete-rank-done-check" aria-hidden="true">✓</span>
+                    <span class="athlete-rank-done-text">
+                        <span class="athlete-rank-done-name">${LegionCore.escapeHtml(item.name)}</span>
+                        ${item.description ? `<span class="athlete-rank-done-desc">${LegionCore.escapeHtml(item.description)}</span>` : ''}
+                    </span>
+                </li>`;
+            });
+            html += '</ul></details>';
+        }
+
+        html += '</div>';
+        return html;
+    },
+
+    prefersReducedMotion() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    },
+
+    shouldStaggerRatingEnter(tabKey) {
+        if (!tabKey || tabKey === 'hall') return false;
+        const state = (typeof LegionCore !== 'undefined' && LegionCore.state) ? LegionCore.state : {};
+        const micro = state._ratingRowEnter || (state._ratingRowEnter = { lastTab: null });
+        if (micro.lastTab !== tabKey) {
+            micro.lastTab = tabKey;
+            return true;
+        }
+        return false;
+    },
+
+    collectRatingTableRows(root) {
+        if (!root) return [];
+        const rows = [];
+        root.querySelectorAll('.rating-table').forEach((table) => {
+            const tableRows = table.tBodies.length
+                ? table.querySelectorAll('tbody tr')
+                : Array.from(table.rows).slice(1);
+            tableRows.forEach((tr) => {
+                if (tr.querySelector('th')) return;
+                const firstCell = tr.cells && tr.cells[0];
+                if (firstCell && firstCell.colSpan > 1) return;
+                rows.push(tr);
+            });
+        });
+        return rows;
+    },
+
+    applyRatingRowEntrance(root, tabKey, options) {
+        if (!root || this.prefersReducedMotion()) return;
+        const opts = options || {};
+        const stagger = opts.force === true || this.shouldStaggerRatingEnter(tabKey);
+        if (!stagger) return;
+
+        this.collectRatingTableRows(root).forEach((row, i) => {
+            row.classList.add('legion-micro-row');
+            row.style.setProperty('--legion-micro-delay', `${Math.min(i * 48, 420)}ms`);
+        });
     }
 };

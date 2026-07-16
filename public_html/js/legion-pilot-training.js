@@ -19,14 +19,19 @@ const LegionPilotTraining = {
     coachProfile: null,
     coachRankLeague: 'auto',
 
-    exercises: [
-        { key: 'push', label: 'Отжимания' },
-        { key: 'pull', label: 'Подтягивания' },
-        { key: 'hang', label: 'Вис (сек)' },
-        { key: 'burpee', label: 'Бёрпи' },
-        { key: 'crunch', label: 'Скручивания' },
-        { key: 'jump', label: 'Прыжок (см)' }
-    ],
+    getExerciseList() {
+        if (typeof LegionConfig !== 'undefined' && Array.isArray(LegionConfig.EXERCISES) && LegionConfig.EXERCISES.length) {
+            return LegionConfig.EXERCISES;
+        }
+        return [
+            { key: 'push', label: 'Отжимания', tabShort: 'Отжим.' },
+            { key: 'pull', label: 'Подтягивания', tabShort: 'Подтяг.' },
+            { key: 'hang', label: 'Вис (сек)', tabShort: 'Вис' },
+            { key: 'burpee', label: 'Бёрпи за 1 мин', tabShort: 'Бёрпи' },
+            { key: 'crunch', label: 'Скручивания', tabShort: 'Скруч.' },
+            { key: 'jump', label: 'Прыжок в длину (см)', tabShort: 'Прыжок' }
+        ];
+    },
 
     rankLeagues: [
         { id: 3, label: 'Бронза' },
@@ -220,7 +225,7 @@ const LegionPilotTraining = {
         this.baseline = {};
         this.athletes.forEach((a) => {
             this.baseline[a.name] = {};
-            this.exercises.forEach((ex) => {
+            this.getExerciseList().forEach((ex) => {
                 this.baseline[a.name][ex.key] = Number(a[ex.key]) || 0;
             });
         });
@@ -476,6 +481,9 @@ const LegionPilotTraining = {
             if (typeof LegionCore !== 'undefined') {
                 LegionCore.state.rankData = { ...this.rankData };
                 LegionCore.applyRankData(this.rankData, [athlete]);
+                if (next === 1) {
+                    await LegionCore.loadRankHistoryFromServer();
+                }
             }
 
             const leagueAfter = this.getAthleteActiveLeague(name);
@@ -581,6 +589,17 @@ const LegionPilotTraining = {
                 <div class="pilot-photos-grid" id="pilot-photos-grid"></div>
                 <input type="file" id="pilot-photo-file" accept="image/jpeg,image/png,image/webp" hidden>
             </div>
+            <div id="pilot-profile-panel" class="pilot-profile-panel" hidden>
+                <p class="pilot-profile-note">Дата рождения нужна для анализа спортсмена. Возраст считается автоматически. Пустое поле — возраст не указан.</p>
+                <div class="pilot-training-table-wrap pilot-profile-table-wrap">
+                    <table class="pilot-training-table pilot-profile-table">
+                        <thead>
+                            <tr><th>ФИО</th><th>Дата рождения</th><th>Возраст</th></tr>
+                        </thead>
+                        <tbody id="pilot-profile-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
             <div id="pilot-coach-panel" class="pilot-coach-panel" hidden>
                 <p class="pilot-coach-note">Профиль тренера создаётся автоматически. Имя берётся из настройки группы (<code>api/coaches.php</code>) — это название вкладки тренера на сайте.</p>
                 <h3 class="pilot-coach-name" id="pilot-coach-name"></h3>
@@ -592,16 +611,39 @@ const LegionPilotTraining = {
                     <h4>Ранги</h4>
                     <div class="pilot-rank-league-tabs" id="pilot-coach-rank-league-tabs"></div>
                     <p class="pilot-rank-hint" id="pilot-coach-rank-hint"></p>
-                    <div class="table-wrap pilot-coach-ranks-wrap">
-                        <table class="pilot-training-table pilot-ranks-table" id="pilot-coach-ranks-table">
-                            <thead id="pilot-coach-ranks-thead"></thead>
-                            <tbody id="pilot-coach-ranks-tbody"></tbody>
-                        </table>
+                    <div class="pilot-ranks-split pilot-ranks-split--coach" id="pilot-coach-ranks-split">
+                        <div class="pilot-ranks-names-pane">
+                            <table class="pilot-training-table pilot-ranks-table pilot-ranks-names-table">
+                                <thead id="pilot-coach-ranks-names-thead"></thead>
+                                <tbody id="pilot-coach-ranks-names-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="pilot-ranks-scroll-pane">
+                            <table class="pilot-training-table pilot-ranks-table pilot-ranks-data-table">
+                                <thead id="pilot-coach-ranks-data-thead"></thead>
+                                <tbody id="pilot-coach-ranks-data-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
             </div>
             <div id="pilot-import-panel" class="pilot-import-panel" hidden>
-                <p class="pilot-import-note">Импорт спортсменов из Google Таблиц в MySQL. Первая строка с данными в старых таблицах (норматив тренера) пропускается — тренер редактируется во вкладке «Тренер».</p>
+                <section class="pilot-import-block">
+                    <h3 class="pilot-import-subtitle">Список детей из Google Таблицы</h3>
+                    <p class="pilot-import-note">Скопируйте колонку с фамилией и именем (Ctrl+C) и вставьте ниже — по одному на строку. Если имя уже есть в группе, система попросит первую букву отчества (например, «Сокадин Дмитрий А.»).</p>
+                    <label class="pilot-import-field">
+                        <span>Фамилия и имя</span>
+                        <textarea id="pilot-import-names-list" rows="10" placeholder="Сокадин Дмитрий&#10;Комзолов Матвей&#10;Конченко Матвей"></textarea>
+                    </label>
+                    <div class="pilot-import-actions">
+                        <button type="button" class="pilot-btn pilot-btn--primary" id="pilot-import-names-btn">Добавить в группу</button>
+                    </div>
+                    <p id="pilot-import-names-status" class="pilot-import-status" hidden></p>
+                </section>
+                <hr class="pilot-import-divider">
+                <section class="pilot-import-block">
+                    <h3 class="pilot-import-subtitle">Полный импорт из таблиц</h3>
+                    <p class="pilot-import-note">Импорт спортсменов и результатов из Google Таблиц в MySQL. Первая строка с данными в старых таблицах (норматив тренера) пропускается — тренер редактируется во вкладке «Тренер».</p>
                 <label class="pilot-import-field">
                     <span>Шаблон тренера (подставить ссылки)</span>
                     <select id="pilot-import-preset">
@@ -624,6 +666,12 @@ const LegionPilotTraining = {
                     <button type="button" class="pilot-btn pilot-btn--primary" id="pilot-import-btn">Импортировать в базу</button>
                 </div>
                 <p id="pilot-import-status" class="pilot-import-status" hidden></p>
+                </section>
+            </div>
+            <div class="pilot-add-row" id="pilot-add-row">
+                <input type="text" id="pilot-new-name" placeholder="ФИО нового спортсмена" enterkeyhint="done">
+                <input type="date" id="pilot-new-birthdate" class="pilot-new-birthdate" title="Дата рождения (необязательно)" aria-label="Дата рождения">
+                <button type="button" class="pilot-btn pilot-btn--primary" id="pilot-add-btn">Добавить</button>
             </div>
             <p id="pilot-save-status" class="pilot-training-status"></p>
             <div class="pilot-training-table-wrap" id="pilot-training-table-wrap">
@@ -632,18 +680,29 @@ const LegionPilotTraining = {
                     <tbody id="pilot-training-tbody"></tbody>
                 </table>
             </div>
-            <div class="pilot-add-row" id="pilot-add-row">
-                <input type="text" id="pilot-new-name" placeholder="ФИО нового спортсмена" enterkeyhint="done">
-                <button type="button" class="pilot-btn pilot-btn--primary" id="pilot-add-btn">Добавить</button>
+            <div class="pilot-ranks-split" id="pilot-ranks-split" hidden>
+                <div class="pilot-ranks-names-pane">
+                    <table class="pilot-training-table pilot-ranks-table pilot-ranks-names-table">
+                        <thead id="pilot-ranks-names-thead"></thead>
+                        <tbody id="pilot-ranks-names-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="pilot-ranks-scroll-pane" id="pilot-ranks-scroll-pane">
+                    <table class="pilot-training-table pilot-ranks-table pilot-ranks-data-table">
+                        <thead id="pilot-ranks-data-thead"></thead>
+                        <tbody id="pilot-ranks-data-tbody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>`;
 
         const modeTabs = root.querySelector('#pilot-mode-tabs');
         modeTabs.innerHTML = `
             <button type="button" class="pilot-mode-tab" data-mode="results">Результаты</button>
+            <button type="button" class="pilot-mode-tab" data-mode="ranks">Ранги</button>
             <button type="button" class="pilot-mode-tab" data-mode="coach">Тренер</button>
             <button type="button" class="pilot-mode-tab" data-mode="photos">Фото</button>
-            <button type="button" class="pilot-mode-tab" data-mode="ranks">Ранги</button>
+            <button type="button" class="pilot-mode-tab" data-mode="profile">Профиль</button>
             <button type="button" class="pilot-mode-tab" data-mode="history">История</button>
             <button type="button" class="pilot-mode-tab" data-mode="import">Импорт</button>`;
         modeTabs.querySelectorAll('[data-mode]').forEach((btn) => {
@@ -654,12 +713,13 @@ const LegionPilotTraining = {
         });
 
         const exTabs = root.querySelector('#pilot-exercise-tabs');
-        this.exercises.forEach((item) => {
+        this.getExerciseList().forEach((item) => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'pilot-exercise-tab';
             btn.dataset.exercise = item.key;
-            btn.textContent = item.label;
+            btn.textContent = item.tabShort || item.label;
+            btn.title = item.label;
             btn.addEventListener('click', () => {
                 this.captureFocus();
                 this.currentExercise = item.key;
@@ -729,14 +789,26 @@ const LegionPilotTraining = {
             }, true);
         }
 
-        const coachRanksBody = root.querySelector('#pilot-coach-ranks-tbody');
-        if (coachRanksBody) {
-            coachRanksBody.addEventListener('change', (e) => {
+        const coachRanksSplit = root.querySelector('#pilot-coach-ranks-split');
+        if (coachRanksSplit) {
+            coachRanksSplit.addEventListener('change', (e) => {
                 const input = e.target.closest('.pilot-coach-rank-check');
                 if (!input) return;
                 const league = parseInt(input.getAttribute('data-league'), 10);
                 const slot = parseInt(input.getAttribute('data-slot'), 10);
                 this.toggleCoachRankMark(league, slot, input.checked, input);
+            });
+        }
+
+        const ranksSplit = root.querySelector('#pilot-ranks-split');
+        if (ranksSplit) {
+            ranksSplit.addEventListener('change', (e) => {
+                const input = e.target.closest('.pilot-rank-check');
+                if (!input || input.classList.contains('pilot-coach-rank-check')) return;
+                const name = input.getAttribute('data-name');
+                const league = parseInt(input.getAttribute('data-league'), 10);
+                const slot = parseInt(input.getAttribute('data-slot'), 10);
+                this.toggleRankMark(name, league, slot, input.checked, input);
             });
         }
 
@@ -748,6 +820,17 @@ const LegionPilotTraining = {
         });
 
         root.querySelector('#pilot-add-btn').addEventListener('click', () => this.addAthlete());
+
+        const profileTbody = root.querySelector('#pilot-profile-tbody');
+        if (profileTbody) {
+            profileTbody.addEventListener('change', (e) => {
+                const input = e.target.closest('.pilot-birthdate-input');
+                if (!input) return;
+                const name = input.getAttribute('data-name');
+                if (!name) return;
+                this.saveBirthdate(name, input.value, input);
+            });
+        }
 
         const tbody = root.querySelector('#pilot-training-tbody');
         tbody.addEventListener('blur', (e) => {
@@ -769,15 +852,6 @@ const LegionPilotTraining = {
                     if (next.select) next.select();
                 }
             });
-        });
-
-        tbody.addEventListener('change', (e) => {
-            const input = e.target.closest('.pilot-rank-check');
-            if (!input) return;
-            const name = input.getAttribute('data-name');
-            const league = parseInt(input.getAttribute('data-league'), 10);
-            const slot = parseInt(input.getAttribute('data-slot'), 10);
-            this.toggleRankMark(name, league, slot, input.checked, input);
         });
 
         tbody.addEventListener('click', (e) => {
@@ -843,6 +917,11 @@ const LegionPilotTraining = {
         const importBtn = root.querySelector('#pilot-import-btn');
         if (importBtn) {
             importBtn.addEventListener('click', () => this.runSheetsImport());
+        }
+
+        const importNamesBtn = root.querySelector('#pilot-import-names-btn');
+        if (importNamesBtn) {
+            importNamesBtn.addEventListener('click', () => this.runNamesImport());
         }
 
         const photoFile = root.querySelector('#pilot-photo-file');
@@ -911,10 +990,12 @@ const LegionPilotTraining = {
         const ranksPanel = document.getElementById('pilot-ranks-panel');
         const historyPanel = document.getElementById('pilot-history-panel');
         const photosPanel = document.getElementById('pilot-photos-panel');
+        const profilePanel = document.getElementById('pilot-profile-panel');
         const importPanel = document.getElementById('pilot-import-panel');
         const coachPanel = document.getElementById('pilot-coach-panel');
         const addRow = document.getElementById('pilot-add-row');
         const tableWrap = document.getElementById('pilot-training-table-wrap');
+        const ranksSplit = document.getElementById('pilot-ranks-split');
         const saveStatus = document.getElementById('pilot-save-status');
 
         document.querySelectorAll('.pilot-mode-tab').forEach((btn) => {
@@ -925,14 +1006,17 @@ const LegionPilotTraining = {
         if (ranksPanel) ranksPanel.hidden = this.viewMode !== 'ranks';
         if (historyPanel) historyPanel.hidden = this.viewMode !== 'history';
         if (photosPanel) photosPanel.hidden = this.viewMode !== 'photos';
+        if (profilePanel) profilePanel.hidden = this.viewMode !== 'profile';
         if (importPanel) importPanel.hidden = this.viewMode !== 'import';
         if (coachPanel) coachPanel.hidden = this.viewMode !== 'coach';
-        if (addRow) addRow.hidden = this.viewMode !== 'results';
+        if (addRow) addRow.hidden = !(this.viewMode === 'results' || this.viewMode === 'ranks');
         if (tableWrap) {
-            tableWrap.hidden = this.viewMode === 'import' || this.viewMode === 'photos' || this.viewMode === 'coach';
-            tableWrap.classList.toggle('pilot-training-table-wrap--ranks', this.viewMode === 'ranks');
+            tableWrap.hidden = this.viewMode === 'import' || this.viewMode === 'photos' || this.viewMode === 'profile' || this.viewMode === 'coach' || this.viewMode === 'ranks';
         }
-        if (saveStatus) saveStatus.hidden = this.viewMode === 'import' || this.viewMode === 'photos';
+        if (ranksSplit) {
+            ranksSplit.hidden = this.viewMode !== 'ranks';
+        }
+        if (saveStatus) saveStatus.hidden = this.viewMode === 'import' || this.viewMode === 'photos' || this.viewMode === 'profile' || this.viewMode === 'history';
 
         if (this.viewMode === 'results') {
             this.updateResultsView();
@@ -940,6 +1024,8 @@ const LegionPilotTraining = {
             this.updateCoachView();
         } else if (this.viewMode === 'photos') {
             this.updatePhotosView();
+        } else if (this.viewMode === 'profile') {
+            this.updateProfileView();
         } else if (this.viewMode === 'ranks') {
             this.updateRanksView();
         } else if (this.viewMode === 'history') {
@@ -949,7 +1035,7 @@ const LegionPilotTraining = {
         }
 
         const searchWrap = document.getElementById('pilot-search-wrap');
-        if (searchWrap) searchWrap.hidden = this.viewMode === 'import' || this.viewMode === 'coach';
+        if (searchWrap) searchWrap.hidden = this.viewMode === 'import' || this.viewMode === 'coach' || this.viewMode === 'history';
 
         this.updatePilotSearchStatus();
     },
@@ -1000,7 +1086,7 @@ const LegionPilotTraining = {
         }
 
         let html = '';
-        this.exercises.forEach((ex) => {
+        this.getExerciseList().forEach((ex) => {
             const val = Number(coach[ex.key]) || 0;
             const step = ex.key === 'hang' || ex.key === 'jump' ? 'any' : '1';
             html += `<label class="pilot-coach-result-field">
@@ -1021,13 +1107,16 @@ const LegionPilotTraining = {
     },
 
     renderCoachRankRows() {
-        const tbody = document.getElementById('pilot-coach-ranks-tbody');
-        const thead = document.getElementById('pilot-coach-ranks-thead');
+        const namesTbody = document.getElementById('pilot-coach-ranks-names-tbody');
+        const dataTbody = document.getElementById('pilot-coach-ranks-data-tbody');
+        const namesThead = document.getElementById('pilot-coach-ranks-names-thead');
+        const dataThead = document.getElementById('pilot-coach-ranks-data-thead');
         const coach = this.coachProfile;
-        if (!tbody || !thead) return;
+        if (!namesTbody || !dataTbody || !namesThead || !dataThead) return;
 
         if (!coach) {
-            tbody.innerHTML = '<tr><td colspan="5" class="pilot-rank-empty">Нет данных тренера</td></tr>';
+            namesTbody.innerHTML = '<tr><td class="pilot-rank-empty">Нет данных тренера</td></tr>';
+            dataTbody.innerHTML = '<tr><td colspan="24" class="pilot-rank-empty"></td></tr>';
             return;
         }
 
@@ -1039,29 +1128,33 @@ const LegionPilotTraining = {
         const done = this.countLeagueDone(coach.name, league);
         const nextOpen = Math.min(done, 19);
 
-        let head = `<tr class="pilot-ranks-head-names">
-            <th class="col-name sticky-col">ФИО</th>`;
+        namesThead.innerHTML = `<tr class="pilot-ranks-head-names"><th class="col-name">ФИО</th></tr>`;
+
+        let dataHead = `<tr class="pilot-ranks-head-names">`;
         if (isAuto) {
-            head += `<th class="col-rank-league-h">Лига</th>`;
+            dataHead += `<th class="col-rank-league-h">Лига</th>`;
         }
-        head += `<th class="col-rank-title-h">Звание</th>
+        dataHead += `<th class="col-rank-title-h">Звание</th>
             <th class="col-rank-progress-h">Счёт</th>`;
         if (isAuto) {
-            head += `<th colspan="20" class="col-rank-ex-group">Нормативы (текущая лига)</th>`;
+            dataHead += `<th colspan="20" class="col-rank-ex-group">Нормативы (текущая лига)</th>`;
         } else {
             columns.forEach((col) => {
                 const shortEx = this.shortExerciseLabel(col.exercise);
                 const title = col.rankName + ' — ' + (col.description || col.exercise);
-                head += `<th class="col-rank-ex" title="${this.escAttr(title)}">${this.esc(shortEx)}</th>`;
+                dataHead += `<th class="col-rank-ex" title="${this.escAttr(title)}">${this.esc(shortEx)}</th>`;
             });
         }
-        head += `<th class="col-rank-rankname-h">Следующий</th></tr>`;
-        thead.innerHTML = head;
+        dataHead += `<th class="col-rank-rankname-h">Следующий</th></tr>`;
+        dataThead.innerHTML = dataHead;
 
-        let row = `<tr data-coach="1" data-league="${league}" class="pilot-rank-row row-coach-benchmark${
-            done >= 20 ? ' pilot-rank-row--complete' : ''
-        }">`;
-        row += `<td class="col-name sticky-col"><strong>${this.esc(coach.name)}</strong></td>`;
+        const rowClass = `pilot-rank-row row-coach-benchmark${done >= 20 ? ' pilot-rank-row--complete' : ''}`;
+
+        namesTbody.innerHTML = `<tr data-coach="1" data-league="${league}" class="${rowClass}">
+            <td class="col-name"><strong>${this.esc(coach.name)}</strong></td>
+        </tr>`;
+
+        let row = `<tr data-coach="1" data-league="${league}" class="${rowClass}">`;
         if (isAuto) {
             row += `<td class="col-rank-league">${this.esc(meta.label)}</td>`;
         }
@@ -1094,7 +1187,14 @@ const LegionPilotTraining = {
             this.shortExerciseLabel(normLabel, 28)
         )}</td>`;
         row += '</tr>';
-        tbody.innerHTML = row;
+        dataTbody.innerHTML = row;
+
+        requestAnimationFrame(() => {
+            this.syncRankSplitRowHeights('pilot-coach-ranks-names-tbody', 'pilot-coach-ranks-data-tbody', {
+                namesHeadId: 'pilot-coach-ranks-names-thead',
+                dataHeadId: 'pilot-coach-ranks-data-thead',
+            });
+        });
     },
 
     async flushCoachResultInput(input) {
@@ -1194,7 +1294,7 @@ const LegionPilotTraining = {
 
     updateResultsView() {
         const ex = this.currentExercise;
-        const exLabel = (this.exercises.find((e) => e.key === ex) || {}).label || ex;
+        const exLabel = (this.getExerciseList().find((e) => e.key === ex) || {}).label || ex;
         const title = document.getElementById('pilot-training-title');
         if (title) title.textContent = exLabel;
 
@@ -1220,6 +1320,36 @@ const LegionPilotTraining = {
         if (table) table.classList.remove('pilot-ranks-table');
 
         this.renderResultRows(ex);
+    },
+
+    syncRankSplitRowHeights(namesBodyId, dataBodyId, options) {
+        const opts = options || {};
+        const pairs = [];
+
+        if (opts.namesHeadId && opts.dataHeadId) {
+            const nameHeadRow = document.querySelector(`#${opts.namesHeadId} tr`);
+            const dataHeadRow = document.querySelector(`#${opts.dataHeadId} tr`);
+            if (nameHeadRow && dataHeadRow) {
+                pairs.push([nameHeadRow, dataHeadRow]);
+            }
+        }
+
+        const nameRows = document.querySelectorAll(`#${namesBodyId} tr`);
+        const dataRows = document.querySelectorAll(`#${dataBodyId} tr`);
+        const count = Math.min(nameRows.length, dataRows.length);
+        for (let i = 0; i < count; i++) {
+            pairs.push([nameRows[i], dataRows[i]]);
+        }
+
+        pairs.forEach(([left, right]) => {
+            left.style.height = '';
+            right.style.height = '';
+        });
+        pairs.forEach(([left, right]) => {
+            const h = Math.max(left.offsetHeight, right.offsetHeight);
+            left.style.height = `${h}px`;
+            right.style.height = `${h}px`;
+        });
     },
 
     updateRanksView() {
@@ -1252,30 +1382,30 @@ const LegionPilotTraining = {
         const headerLeague = isAuto ? 3 : this.rankViewLeague;
         const columns = this.getLeagueColumnsMeta(headerLeague);
 
-        const thead = document.getElementById('pilot-training-thead');
-        if (thead) {
-            let head = `<tr class="pilot-ranks-head-names">
-                <th class="col-name sticky-col">ФИО</th>`;
+        const namesThead = document.getElementById('pilot-ranks-names-thead');
+        const dataThead = document.getElementById('pilot-ranks-data-thead');
+        if (namesThead) {
+            namesThead.innerHTML = `<tr class="pilot-ranks-head-names"><th class="col-name">ФИО</th></tr>`;
+        }
+        if (dataThead) {
+            let dataHead = `<tr class="pilot-ranks-head-names">`;
             if (showLeagueCol) {
-                head += `<th class="col-rank-league-h">Лига</th>`;
+                dataHead += `<th class="col-rank-league-h">Лига</th>`;
             }
-            head += `<th class="col-rank-title-h">Звание</th>
+            dataHead += `<th class="col-rank-title-h">Звание</th>
                 <th class="col-rank-progress-h">Счёт</th>`;
             if (isAuto) {
-                head += `<th colspan="20" class="col-rank-ex-group">Нормативы (текущая лига)</th>`;
+                dataHead += `<th colspan="20" class="col-rank-ex-group">Нормативы (текущая лига)</th>`;
             } else {
                 columns.forEach((col) => {
                     const shortEx = this.shortExerciseLabel(col.exercise);
                     const title = col.rankName + ' — ' + (col.description || col.exercise);
-                    head += `<th class="col-rank-ex" title="${this.escAttr(title)}">${this.esc(shortEx)}</th>`;
+                    dataHead += `<th class="col-rank-ex" title="${this.escAttr(title)}">${this.esc(shortEx)}</th>`;
                 });
             }
-            head += `<th class="col-rank-rankname-h">Следующий</th></tr>`;
-            thead.innerHTML = head;
+            dataHead += `<th class="col-rank-rankname-h">Следующий</th></tr>`;
+            dataThead.innerHTML = dataHead;
         }
-
-        const table = document.querySelector('.pilot-training-table');
-        if (table) table.classList.add('pilot-ranks-table');
 
         this.renderRankRows();
     },
@@ -1309,6 +1439,9 @@ const LegionPilotTraining = {
     updateHistoryView() {
         const title = document.getElementById('pilot-training-title');
         if (title) title.textContent = 'История изменений';
+
+        const addRow = document.getElementById('pilot-add-row');
+        if (addRow) addRow.hidden = true;
 
         const upd = document.getElementById('pilot-training-updated');
         if (upd) upd.textContent = this.updatedAt ? 'Обновлено: ' + this.updatedAt : '';
@@ -1391,7 +1524,7 @@ const LegionPilotTraining = {
         const tbody = document.getElementById('pilot-training-tbody');
         if (!tbody) return;
 
-        const exLabel = (this.exercises.find((e) => e.key === ex) || {}).label || ex;
+        const exLabel = (this.getExerciseList().find((e) => e.key === ex) || {}).label || ex;
         const step = ex === 'hang' || ex === 'jump' ? 'any' : '1';
         const athletes = this.filterAthletes(this.athletes);
         let html = '';
@@ -1439,8 +1572,9 @@ const LegionPilotTraining = {
     },
 
     renderRankRows() {
-        const tbody = document.getElementById('pilot-training-tbody');
-        if (!tbody) return;
+        const namesTbody = document.getElementById('pilot-ranks-names-tbody');
+        const dataTbody = document.getElementById('pilot-ranks-data-tbody');
+        if (!namesTbody || !dataTbody) return;
 
         const isAuto = this.rankViewLeague === 'auto';
         const list = this.athletesForRankView();
@@ -1449,11 +1583,13 @@ const LegionPilotTraining = {
         if (!list.length) {
             const q = typeof LegionCore !== 'undefined' ? LegionCore.state.searchQuery : '';
             const msg = q ? 'Никого не найдено по запросу.' : this.emptyRankMessage();
-            tbody.innerHTML = `<tr><td colspan="${colSpan}" class="pilot-rank-empty">${this.esc(msg)}</td></tr>`;
+            namesTbody.innerHTML = `<tr><td class="pilot-rank-empty">${this.esc(msg)}</td></tr>`;
+            dataTbody.innerHTML = `<tr><td colspan="${colSpan - 1}" class="pilot-rank-empty"></td></tr>`;
             return;
         }
 
-        let html = '';
+        let namesHtml = '';
+        let dataHtml = '';
         list.forEach((a) => {
             const league = this.getLeagueForAthleteRow(a.name);
             const columns = this.getLeagueColumnsMeta(league);
@@ -1461,62 +1597,111 @@ const LegionPilotTraining = {
             const meta = this.leagueMeta(league);
             const done = this.countLeagueDone(a.name, league);
             const nextOpen = Math.min(done, 19);
+            const rowClass = `pilot-rank-row${done >= 20 ? ' pilot-rank-row--complete' : ''}`;
+            const attr = `data-athlete="${this.escAttr(a.name)}" data-league="${league}"`;
 
-            html += `<tr data-athlete="${this.escAttr(a.name)}" data-league="${league}"` +
-                ` class="pilot-rank-row${done >= 20 ? ' pilot-rank-row--complete' : ''}">`;
-            html += `<td class="col-name sticky-col" title="${this.escAttr(a.name)}">${this.esc(a.name)}</td>`;
+            namesHtml += `<tr ${attr} class="${rowClass}">`;
+            namesHtml += `<td class="col-name" title="${this.escAttr(a.name)}">${this.esc(a.name)}</td>`;
+            namesHtml += `</tr>`;
+
+            dataHtml += `<tr ${attr} class="${rowClass}">`;
             if (isAuto) {
-                html += `<td class="col-rank-league">${this.esc(meta.label)}</td>`;
+                dataHtml += `<td class="col-rank-league">${this.esc(meta.label)}</td>`;
             }
-            html += `<td class="col-rank-title">${rank && rank.rankName ? this.esc(rank.rankName) : '—'}</td>`;
-            html += `<td class="col-rank-progress">${done}/20</td>`;
+            dataHtml += `<td class="col-rank-title">${rank && rank.rankName ? this.esc(rank.rankName) : '—'}</td>`;
+            dataHtml += `<td class="col-rank-progress">${done}/20</td>`;
 
             columns.forEach((col) => {
                 const isDone = this.isRankMarkDone(a.name, league, col.slot);
                 const isNext = !isDone && col.slot === nextOpen;
                 const tip = `${col.rankName}: ${col.description || col.exercise}`;
                 const shortEx = this.shortExerciseLabel(col.exercise);
-                html += `<td class="col-rank-check-cell${isDone ? ' is-done' : ''}${isNext ? ' is-next' : ''}">`;
-                html += `<label class="pilot-rank-check-label" title="${this.escAttr(tip)}">`;
+                dataHtml += `<td class="col-rank-check-cell${isDone ? ' is-done' : ''}${isNext ? ' is-next' : ''}">`;
+                dataHtml += `<label class="pilot-rank-check-label" title="${this.escAttr(tip)}">`;
                 if (isAuto) {
-                    html += `<span class="pilot-rank-cell-ex">${this.esc(shortEx)}</span>`;
+                    dataHtml += `<span class="pilot-rank-cell-ex">${this.esc(shortEx)}</span>`;
                 }
-                html += `<input type="checkbox" class="pilot-rank-check"`;
-                html += ` data-name="${this.escAttr(a.name)}" data-league="${league}" data-slot="${col.slot}"`;
-                html += isDone ? ' checked' : '';
-                html += ` aria-label="${this.escAttr(a.name + ' — ' + col.exercise)}">`;
-                html += `<span class="pilot-rank-check-ui" aria-hidden="true"></span>`;
-                html += `</label></td>`;
+                dataHtml += `<input type="checkbox" class="pilot-rank-check"`;
+                dataHtml += ` data-name="${this.escAttr(a.name)}" data-league="${league}" data-slot="${col.slot}"`;
+                dataHtml += isDone ? ' checked' : '';
+                dataHtml += ` aria-label="${this.escAttr(a.name + ' — ' + col.exercise)}">`;
+                dataHtml += `<span class="pilot-rank-check-ui" aria-hidden="true"></span>`;
+                dataHtml += `</label></td>`;
             });
 
             const nextCol = columns[nextOpen] || columns[0];
             const normLabel = nextCol
                 ? (done >= 20 ? 'Лига пройдена' : nextCol.exercise)
                 : '';
-            html += `<td class="col-rank-norm" title="${this.escAttr(normLabel)}">${this.esc(
+            dataHtml += `<td class="col-rank-norm" title="${this.escAttr(normLabel)}">${this.esc(
                 this.shortExerciseLabel(normLabel, 28)
             )}</td>`;
-            html += `</tr>`;
+            dataHtml += `</tr>`;
         });
 
-        tbody.innerHTML = html;
+        namesTbody.innerHTML = namesHtml;
+        dataTbody.innerHTML = dataHtml;
+        requestAnimationFrame(() => {
+            this.syncRankSplitRowHeights('pilot-ranks-names-tbody', 'pilot-ranks-data-tbody', {
+                namesHeadId: 'pilot-ranks-names-thead',
+                dataHeadId: 'pilot-ranks-data-thead',
+            });
+        });
+    },
+
+    promptPatronymicInitial(baseName) {
+        const letter = window.prompt(
+            `В группе уже есть «${baseName}».\nВведите первую букву отчества для второго спортсмена:`
+        );
+        if (letter === null) return null;
+        const trimmed = String(letter).trim();
+        if (!trimmed) return null;
+        return trimmed.slice(0, 1).toLocaleUpperCase('ru-RU');
+    },
+
+    async submitAddAthlete(name, options) {
+        const opts = options || {};
+        const body = this.apiCoachBody({ name });
+        if (opts.patronymicInitial) {
+            body.patronymicInitial = opts.patronymicInitial;
+        }
+        if (opts.birthdate) {
+            body.birthdate = opts.birthdate;
+        }
+        const resp = await fetch('/api/coach/add_athlete.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (resp.status === 409 && data.code === 'needs_patronymic') {
+            const baseName = data.baseName || name;
+            const letter = this.promptPatronymicInitial(baseName);
+            if (!letter) {
+                return { cancelled: true };
+            }
+            return this.submitAddAthlete(baseName, { patronymicInitial: letter });
+        }
+        if (!resp.ok) throw new Error(data.error || 'Ошибка');
+        return data;
     },
 
     async addAthlete() {
         const input = document.getElementById('pilot-new-name');
+        const birthInput = document.getElementById('pilot-new-birthdate');
         const name = input ? input.value.trim() : '';
+        const birthdate = birthInput ? birthInput.value : '';
         if (!name) return;
         this.setStatus('Добавление…', 'saving');
         try {
-            const resp = await fetch('/api/coach/add_athlete.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.apiCoachBody({ name }))
-            });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || 'Ошибка');
+            const data = await this.submitAddAthlete(name, birthdate ? { birthdate } : {});
+            if (data.cancelled) {
+                this.setStatus('Добавление отменено', 'error');
+                return;
+            }
             if (input) input.value = '';
+            if (birthInput) birthInput.value = '';
             await this.loadAthletes();
             this.focusIdx = this.athletes.length - 1;
             this.updateViewMode();
@@ -1631,6 +1816,98 @@ const LegionPilotTraining = {
         grid.innerHTML = html;
     },
 
+    computeAge(birthdate) {
+        if (!birthdate) return null;
+        const born = new Date(`${birthdate}T12:00:00`);
+        if (Number.isNaN(born.getTime())) return null;
+        const today = new Date();
+        let age = today.getFullYear() - born.getFullYear();
+        const monthDiff = today.getMonth() - born.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
+            age -= 1;
+        }
+        return age >= 0 ? age : null;
+    },
+
+    formatAgeLabel(athlete) {
+        if (athlete && typeof athlete.age === 'number' && athlete.age >= 0) {
+            return String(athlete.age);
+        }
+        const computed = athlete ? this.computeAge(athlete.birthdate) : null;
+        return computed !== null ? String(computed) : '—';
+    },
+
+    updateProfileView() {
+        const title = document.getElementById('pilot-training-title');
+        if (title) title.textContent = 'Профиль спортсменов';
+
+        const upd = document.getElementById('pilot-training-updated');
+        if (upd) {
+            upd.textContent = this.updatedAt ? 'Обновлено: ' + this.updatedAt : '';
+        }
+
+        const tbody = document.getElementById('pilot-profile-tbody');
+        if (!tbody) return;
+
+        if (!this.athletes.length) {
+            tbody.innerHTML = '<tr><td colspan="3" class="note">В группе пока нет спортсменов.</td></tr>';
+            return;
+        }
+
+        const athletes = this.filterAthletes(this.athletes);
+        if (!athletes.length) {
+            tbody.innerHTML = '<tr><td colspan="3" class="note">Никого не найдено. Попробуйте другое имя.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        athletes.forEach((a) => {
+            const birthVal = a.birthdate || '';
+            html += `<tr>
+                <td>${this.esc(a.name)}</td>
+                <td><input type="date" class="pilot-birthdate-input" data-name="${this.escAttr(a.name)}" value="${this.escAttr(birthVal)}"></td>
+                <td class="pilot-age-cell" data-name="${this.escAttr(a.name)}">${this.esc(this.formatAgeLabel(a))}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    },
+
+    async saveBirthdate(name, birthdate, inputEl) {
+        this.setStatus('Сохранение…', 'saving');
+        const athlete = this.athletes.find((a) => a.name === name);
+        const prev = athlete ? (athlete.birthdate || '') : '';
+        try {
+            const resp = await fetch('/api/coach/update_birthdate.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.apiCoachBody({ name, birthdate }))
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Ошибка');
+            if (athlete) {
+                athlete.birthdate = data.birthdate || null;
+                if (typeof data.age === 'number') {
+                    athlete.age = data.age;
+                } else {
+                    delete athlete.age;
+                }
+            }
+            const esc = typeof CSS !== 'undefined' && CSS.escape
+                ? CSS.escape(name)
+                : name.replace(/"/g, '\\"');
+            const ageCell = document.querySelector(`.pilot-age-cell[data-name="${esc}"]`);
+            if (ageCell) {
+                ageCell.textContent = typeof data.age === 'number' ? String(data.age) : '—';
+            }
+            if (data.updatedAt) this.updatedAt = data.updatedAt;
+            this.setStatus('Сохранено', 'ok');
+        } catch (err) {
+            if (inputEl) inputEl.value = prev;
+            this.setStatus(err.message, 'error');
+        }
+    },
+
     async uploadPhoto(name, file) {
         if (!name || !file) return;
         this.setStatus('Загрузка фото…', 'saving');
@@ -1693,7 +1970,7 @@ const LegionPilotTraining = {
 
     updateImportView() {
         const title = document.getElementById('pilot-training-title');
-        if (title) title.textContent = 'Импорт из Google Таблиц';
+        if (title) title.textContent = 'Импорт';
 
         const upd = document.getElementById('pilot-training-updated');
         if (upd) {
@@ -1739,6 +2016,84 @@ const LegionPilotTraining = {
         el.hidden = !message;
         el.textContent = message || '';
         el.className = 'pilot-import-status' + (kind ? ` pilot-import-status--${kind}` : '');
+    },
+
+    setNamesImportStatus(message, kind) {
+        const el = document.getElementById('pilot-import-names-status');
+        if (!el) return;
+        el.hidden = !message;
+        el.textContent = message || '';
+        el.className = 'pilot-import-status' + (kind ? ` pilot-import-status--${kind}` : '');
+    },
+
+    async runNamesImport() {
+        const textarea = document.getElementById('pilot-import-names-list');
+        const names = textarea ? textarea.value : '';
+        const btn = document.getElementById('pilot-import-names-btn');
+
+        if (!names.trim()) {
+            this.setNamesImportStatus('Вставьте список ФИО — по одному на строку', 'error');
+            return;
+        }
+
+        if (btn) btn.disabled = true;
+        this.setNamesImportStatus('Добавление в группу…', 'saving');
+
+        try {
+            const resp = await fetch('/api/coach/import_names.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.apiCoachBody({ names }))
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Ошибка импорта');
+
+            let patronymicAdded = 0;
+            const needsList = Array.isArray(data.needsPatronymic) ? data.needsPatronymic : [];
+            for (let i = 0; i < needsList.length; i++) {
+                const baseName = needsList[i];
+                const letter = this.promptPatronymicInitial(baseName);
+                if (!letter) continue;
+                try {
+                    await this.submitAddAthlete(baseName, { patronymicInitial: letter });
+                    patronymicAdded++;
+                } catch (addErr) {
+                    this.setNamesImportStatus(addErr.message || 'Ошибка добавления', 'error');
+                    return;
+                }
+            }
+
+            if (data.addedCount > 0 || patronymicAdded > 0) {
+                await this.loadAthletes();
+            }
+
+            let msg = `Добавлено: ${data.addedCount + patronymicAdded}`;
+            if (patronymicAdded > 0 && data.addedCount > 0) {
+                msg = `Добавлено: ${data.addedCount + patronymicAdded} (из них с буквой отчества: ${patronymicAdded})`;
+            } else if (patronymicAdded > 0) {
+                msg = `Добавлено с буквой отчества: ${patronymicAdded}`;
+            }
+            if (data.skippedCount > 0) {
+                msg += ` · пропущено (уже в группе): ${data.skippedCount}`;
+            }
+            const unresolved = needsList.length - patronymicAdded;
+            if (unresolved > 0) {
+                msg += ` · без отчества не добавлено: ${unresolved}`;
+            }
+            if (data.addedCount === 0 && patronymicAdded === 0 && data.skippedCount > 0 && needsList.length === 0) {
+                msg = `Все ${data.skippedCount} имён уже есть в группе`;
+            }
+            this.setNamesImportStatus(msg, 'ok');
+
+            if ((data.addedCount > 0 || patronymicAdded > 0) && textarea) {
+                textarea.value = '';
+            }
+        } catch (err) {
+            this.setNamesImportStatus(err.message || 'Ошибка импорта', 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
     },
 
     async runSheetsImport() {

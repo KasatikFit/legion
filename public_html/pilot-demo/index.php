@@ -29,10 +29,10 @@ $legionVer = legion_asset_version();
         </div>
     </header>
 
-    <nav class="pilot-nav no-print" aria-label="Пилотная группа">
-        <a href="/pilot-demo/" class="is-active">Рейтинг группы</a>
-        <a href="/pilot-demo/training.php">Режим тренировки</a>
-        <a href="/">← На главную клуба</a>
+    <nav class="legion-site-nav no-print" aria-label="Пилотная группа">
+        <span class="legion-site-nav__link is-active" aria-current="page">Рейтинг группы</span>
+        <a href="/pilot-demo/training.php" class="legion-site-nav__link">Режим тренировки</a>
+        <a href="/" class="legion-site-nav__link">Общий рейтинг</a>
     </nav>
 
     <?php require dirname(__DIR__) . '/search-bar.php'; ?>
@@ -50,6 +50,7 @@ $legionVer = legion_asset_version();
     <script src="/js/legion-ui.js?v=<?php echo (int)$legionVer; ?>" defer></script>
     <script src="/js/legion-pilot-photos.js?v=<?php echo (int)$legionVer; ?>" defer></script>
     <script src="/js/legion-pilot-achievements.js?v=<?php echo (int)$legionVer; ?>" defer></script>
+    <script src="/js/legion-pilot-micro.js?v=<?php echo (int)$legionVer; ?>" defer></script>
     <script src="/js/legion-pilot-rating.js?v=<?php echo (int)$legionVer; ?>" defer></script>
 </body>
 </html>

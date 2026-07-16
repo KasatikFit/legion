@@ -281,11 +281,7 @@ const LegionCoachPage = {
             : {};
         LegionCore.state.athletesData = athletes;
         LegionCore.calculateAllRatings(athletes);
-        LegionCore.state.overallSorted = LegionCore.sortByTotal([...athletes]);
-        LegionCore.state.overallSorted.forEach((a, idx) => {
-            a.pointsRank = idx + 1;
-            a.overallRank = idx + 1;
-        });
+        LegionCore.state.overallSorted = LegionCore.sortByTotal([...athletes.filter((a) => !a.isCoach)]);
 
         if (data.coachBenchmark && typeof data.coachBenchmark === 'object' && data.coachBenchmark.name) {
             const slug = this.coach.slug;
@@ -349,6 +345,12 @@ const LegionCoachPage = {
                 this.serverElite = this.coachSorted.slice(0, 10).map(a => a.name);
             }
 
+            try {
+                await LegionCore.refreshClubOverallRanks();
+            } catch (rankErr) {
+                console.warn('Не удалось загрузить общие места клуба:', rankErr);
+            }
+
             LegionCore.updateAllAchievements();
             this.renderCurrentTab();
 
@@ -377,6 +379,7 @@ const LegionCoachPage = {
                 a.pointsRank = idx + 1;
                 a.overallRank = idx + 1;
             });
+            LegionCore.state.clubOverallRankMap = LegionCore.buildClubOverallRankMap(athletesData);
 
             this.coachAthletes = this.filterCoachAthletes(athletesData);
             this.setCoachBenchmarkFromState();
@@ -387,7 +390,7 @@ const LegionCoachPage = {
                 if (coachWarning) {
                     throw new Error(`${coachWarning.message} (группа «${this.coach.name}»)`);
                 }
-                throw new Error(`У тренера «${this.coach.name}» нет спортсменов в таблицах. Проверьте api/coaches.php и Google Таблицу.`);
+                throw new Error(`У тренера «${this.coach.name}» нет спортсменов в базе. Импортируйте группу в режиме тренировки.`);
             }
 
             LegionCore.calculateAllRatings(this.coachAthletes);
@@ -401,7 +404,6 @@ const LegionCoachPage = {
             }
 
             LegionCore.updateAllAchievements();
-            LegionCore.renderLoadWarnings();
             this.renderCurrentTab();
 
             await this.syncBackgroundData(athletesData);
@@ -412,21 +414,24 @@ const LegionCoachPage = {
     },
 
     async syncBackgroundData(athletesData) {
-        const isMysql = this.coach.storage === 'mysql';
         await Promise.allSettled([
             this.loadEliteFromServer(),
-            ...(isMysql ? [] : [
-                LegionCore.loadHistoryFromServer(),
-                LegionCore.loadRankHistoryFromServer()
-            ]),
-            LegionCore.loadSnapshotMetaFromServer(),
-            ...(isMysql ? [] : [LegionCore.loadAchievementsFromServer()])
+            LegionCore.loadRankHistoryFromServer(),
+            LegionCore.loadSnapshotMetaFromServer()
         ]);
 
         await Promise.allSettled([
             LegionCore.migrateAchievementsFromLocalStorage(),
             this.migrateEliteFromLocalStorage()
         ]);
+
+        if (this.coach.storage === 'mysql') {
+            try {
+                await LegionCore.refreshClubOverallRanks();
+            } catch (rankErr) {
+                console.warn('Не удалось обновить общие места клуба:', rankErr);
+            }
+        }
 
         if (this.getElite().length === 0 && this.coachSorted.length > 0) {
             this.setElite(this.coachSorted.slice(0, 10).map(a => a.name));
@@ -438,6 +443,7 @@ const LegionCoachPage = {
         LegionCore.updateAllAchievements();
         this.renderCurrentTab();
         this.updateRotationPanelInfo();
+        LegionCore.refreshOpenAthleteModal();
 
         try {
             await this.checkAutoRotation();
@@ -536,7 +542,7 @@ const LegionCoachPage = {
     switchTab(tab) {
         LegionCore.state.currentTab = tab;
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        const tabEl = document.querySelector(`.tab[onclick="switchTab('${tab}')"]`);
+        const tabEl = document.querySelector(`.tab[data-tab="${tab}"]`);
         if (tabEl) tabEl.classList.add('active');
         this.renderCurrentTab();
     },
@@ -581,12 +587,22 @@ const LegionCoachPage = {
         const showPrint = !!(html && !(LegionCore.state.searchQuery && matchCount === 0));
         contentDiv.innerHTML = this.appendPrintFooter(html, showPrint);
         LegionCore.updateSearchStatus(matchCount);
+        if (typeof LegionUI !== 'undefined' && LegionUI.applyRatingRowEntrance) {
+            LegionUI.applyRatingRowEntrance(contentDiv, tab);
+        }
     },
 
     getAthleteNameDisplay(name, eliteList) {
-        const isElite = eliteList.includes(name);
-        const icon = isElite ? LegionCore.formatEliteIcon('Элита группы') : '';
-        return `${icon}${LegionCore.formatAthleteLink(name)}`;
+        let prefix = '';
+        if (eliteList.includes(name)) {
+            prefix += LegionCore.formatEliteIcon('Элита группы');
+        }
+        const athlete = this.coachAthletes.find((a) => a.name === name)
+            || (LegionCore.state.athletesData || []).find((a) => a.name === name);
+        const top25 = athlete && LegionCore.isClubTop25(athlete)
+            ? LegionCore.formatTop25Icon()
+            : '';
+        return `${prefix}${LegionCore.formatAthleteLink(name)}${top25}`;
     },
 
     buildCoachBenchmarkOverall() {
@@ -594,7 +610,7 @@ const LegionCoachPage = {
         if (!a) return '';
         const slug = this.coach.slug;
         let html = '<section class="coach-benchmark-section">';
-        html += '<h2 class="coach-benchmark-title">🏋️ Тренер <span class="coach-benchmark-note">(вне зачёта · вкладка «Тренер» в режиме тренировки)</span></h2>';
+        html += '<h2 class="coach-benchmark-title">🏋️ Результаты тренера</h2>';
         html += '<div class="table-wrap"><table class="rating-table rating-table-coach-benchmark">';
         html += '<tr><th>ФИО</th><th>Ранг</th>';
         LegionConfig.EXERCISES.forEach((ex) => {
@@ -613,18 +629,6 @@ const LegionCoachPage = {
         return html;
     },
 
-    buildCoachBenchmarkExerciseRow(exKey) {
-        const a = this.coachBenchmark;
-        if (!a) return '';
-        const val = Number(a[exKey]) || 0;
-        return `<tr class="row-coach-benchmark coach-profile-row" role="button" tabindex="0" title="Открыть карточку тренера">
-            <td>—</td>
-            <td><strong>🏋️ ${LegionCore.escapeHtml(a.name)}</strong> <span class="coach-benchmark-note">(тренер)</span></td>
-            <td>${val > 0 ? val : '–'}</td>
-            <td>—</td>
-        </tr>`;
-    },
-
     buildLeagueTable(athletes, leagueName, eliteList) {
         if (athletes.length === 0) {
             return LegionCore.state.searchQuery
@@ -640,7 +644,7 @@ const LegionCoachPage = {
                 <td class="${cellClass}"><strong>${rank}</strong></td>
                 <td>${this.getAthleteNameDisplay(a.name, eliteList)}</td>
                 <td>${LegionCore.formatRankDisplay(a.name, this.coach.slug)}</td>
-                <td><strong>${a.total}</strong></td>
+                <td class="col-points"><strong>${a.total}</strong></td>
             </tr>`;
         });
         html += '</table></div>';
@@ -664,11 +668,10 @@ const LegionCoachPage = {
             html += `<tr>
                 <td class="${cellClass}"><strong>${rank}</strong></td>
                 <td>${this.getAthleteNameDisplay(a.name, eliteList)}</td>
-                <td>${a[exKey]}</td>
-                <td>${a[exKey + '_points']}</td>
+                <td class="col-result">${a[exKey]}</td>
+                <td class="col-points">${a[exKey + '_points']}</td>
             </tr>`;
         });
-        html += this.buildCoachBenchmarkExerciseRow(exKey);
         html += '</table></div>';
         return html;
     },
@@ -694,17 +697,16 @@ const LegionCoachPage = {
         const isElite = eliteList.includes(name);
         const coachAthlete = this.coachAthletes.find(a => a.name === name);
         const coachRank = coachAthlete ? coachAthlete.coachRank : '?';
-        const overallRank = athlete.overallRank || '?';
+        const overallRank = LegionCore.getClubOverallRank(athlete);
         const clubRank = LegionCore.getClubRank(name, athlete.coachSlug);
 
         LegionUI.applyPhotoFrame(document.getElementById('modal-photo-frame'), clubRank, isElite, false);
 
-        document.getElementById('modal-photo').src = athlete.photo && athlete.photo.startsWith('http')
-            ? athlete.photo
-            : "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22%3E%3Ccircle cx=%2260%22 cy=%2260%22 r=%2250%22 fill=%22%23222%22/%3E%3Ctext x=%2260%22 y=%2270%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23888%22%3E👤%3C/text%3E%3C/svg%3E";
+        LegionCore.setModalPhoto(athlete);
         document.getElementById('modal-name').innerHTML = isElite
             ? `${LegionCore.formatEliteIcon()}${name}`
             : name;
+        LegionCore.fillAthleteModalAge(athlete);
         document.getElementById('modal-league').innerHTML = isElite
             ? `${LegionConfig.ELITE_ICON} Элита`
             : 'Любители';
@@ -721,6 +723,7 @@ const LegionCoachPage = {
         }
 
         LegionCore.fillAthleteModalExtras(name, athlete);
+        LegionCore.updateAthleteModalMoreLink(athlete);
         modal.classList.add('active');
     },
 
@@ -738,10 +741,9 @@ const LegionCoachPage = {
 
         LegionUI.applyPhotoFrame(document.getElementById('modal-photo-frame'), clubRank, false, false);
 
-        document.getElementById('modal-photo').src = coach.photo && coach.photo.startsWith('http')
-            ? coach.photo
-            : "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22%3E%3Ccircle cx=%2260%22 cy=%2260%22 r=%2250%22 fill=%22%23222%22/%3E%3Ctext x=%2260%22 y=%2275%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23888%22%3E🏋️%3C/text%3E%3C/svg%3E";
+        LegionCore.setModalPhoto(coach);
         document.getElementById('modal-name').innerHTML = `🏋️ ${LegionCore.escapeHtml(name)}`;
+        LegionCore.fillAthleteModalAge(null);
         document.getElementById('modal-league').innerHTML = '<span class="coach-benchmark-note">Тренер · вне зачёта</span>';
 
         LegionCore.fillAthleteModalTable(coach, { coachOnly: true });
@@ -757,6 +759,7 @@ const LegionCoachPage = {
         if (achEl) achEl.innerHTML = '';
 
         LegionCore.fillAthleteModalExtras(name, coach, { showAchievements: false });
+        LegionCore.updateAthleteModalMoreLink(null);
         modal.classList.add('active');
     },
 

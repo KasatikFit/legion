@@ -123,12 +123,12 @@ const LegionConfig = {
     ],
 
     EXERCISES: [
-        { key: 'push', label: 'Отжимания', tab: 'push', tableTitle: 'Отжимания', csvMatch: 'отжимания' },
-        { key: 'pull', label: 'Подтягивания', tab: 'pull', tableTitle: 'Подтягивания', csvMatch: 'подтягивания' },
-        { key: 'hang', label: 'Вис (сек)', tab: 'hang', tableTitle: 'Вис (сек)', csvMatch: 'вис' },
-        { key: 'burpee', label: 'Бёрпи за 1 мин', tab: 'burpee', tableTitle: 'Бёрпи за 1 мин', csvMatch: 'бёрпи' },
-        { key: 'crunch', label: 'Скручивания', tab: 'crunch', tableTitle: 'Скручивания', csvMatch: 'скручиван' },
-        { key: 'jump', label: 'Прыжок в длину (см)', tab: 'jump', tableTitle: 'Прыжок в длину (см)', csvMatch: 'прыжок' }
+        { key: 'push', label: 'Отжимания', tabShort: 'Отжим.', tab: 'push', tableTitle: 'Отжимания', csvMatch: 'отжимания' },
+        { key: 'pull', label: 'Подтягивания', tabShort: 'Подтяг.', tab: 'pull', tableTitle: 'Подтягивания', csvMatch: 'подтягивания' },
+        { key: 'hang', label: 'Вис (сек)', tabShort: 'Вис', tab: 'hang', tableTitle: 'Вис (сек)', csvMatch: 'вис' },
+        { key: 'burpee', label: 'Бёрпи за 1 мин', tabShort: 'Бёрпи', tab: 'burpee', tableTitle: 'Бёрпи за 1 мин', csvMatch: 'бёрпи' },
+        { key: 'crunch', label: 'Скручивания', tabShort: 'Скруч.', tab: 'crunch', tableTitle: 'Скручивания', csvMatch: 'скручиван' },
+        { key: 'jump', label: 'Прыжок в длину (см)', tabShort: 'Прыжок', tab: 'jump', tableTitle: 'Прыжок в длину (см)', csvMatch: 'прыжок' }
     ],
 
     /** Порядок сравнения при равенстве суммы очков */
@@ -156,5 +156,9 @@ const LegionConfig = {
         const map = {};
         this.getCoaches().forEach(c => { map[c.name] = c.csvUrl; });
         return map;
+    },
+
+    getExerciseByTab(tab) {
+        return this.EXERCISES.find(e => e.tab === tab) || null;
     }
 };

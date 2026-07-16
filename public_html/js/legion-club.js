@@ -17,7 +17,7 @@ const LegionClubPage = {
     startPage() {
         const contentDiv = document.getElementById('content');
         if (contentDiv) {
-            contentDiv.innerHTML = '<p class="note">Загрузка данных из Google Таблиц…</p>';
+            contentDiv.innerHTML = '<p class="note">Загрузка общего рейтинга с сервера…</p>';
         }
         this.onLoad().catch((err) => {
             console.error('Ошибка загрузки:', err);
@@ -42,10 +42,8 @@ const LegionClubPage = {
 
     async syncBackgroundData() {
         await Promise.allSettled([
-            LegionCore.loadHistoryFromServer(),
             LegionCore.loadRankHistoryFromServer(),
-            LegionCore.loadSnapshotMetaFromServer(),
-            LegionCore.loadAchievementsFromServer()
+            LegionCore.loadSnapshotMetaFromServer()
         ]);
         await Promise.allSettled([
             LegionCore.migrateAchievementsFromLocalStorage()
@@ -77,7 +75,6 @@ const LegionClubPage = {
         LegionCore.initExerciseSorted(athletesData);
 
         LegionCore.updateAllAchievements();
-        LegionCore.renderLoadWarnings();
         this.updateClubStats();
         this.renderCurrentTab();
         LegionCore.refreshOpenAthleteModal();
@@ -95,7 +92,7 @@ const LegionClubPage = {
     switchTab(tab) {
         LegionCore.state.currentTab = tab;
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        const tabEl = document.querySelector(`.tab[onclick="switchTab('${tab}')"]`);
+        const tabEl = document.querySelector(`.tab[data-tab="${tab}"]`);
         if (tabEl) tabEl.classList.add('active');
         this.renderCurrentTab();
     },
@@ -137,11 +134,13 @@ const LegionClubPage = {
         }
         contentDiv.innerHTML = html;
         LegionCore.updateSearchStatus(matchCount);
+        if (typeof LegionUI !== 'undefined' && LegionUI.applyRatingRowEntrance) {
+            LegionUI.applyRatingRowEntrance(contentDiv, tab);
+        }
     },
 
     isClubElite(athlete) {
-        const rank = athlete && (athlete.overallRank || athlete.pointsRank);
-        return typeof rank === 'number' && rank <= 25;
+        return LegionCore.isClubTop25(athlete);
     },
 
     getClubEliteRowClass(rank) {
@@ -150,9 +149,17 @@ const LegionClubPage = {
         return 'row-club-elite row-club-elite-base';
     },
 
-    getAthleteNameDisplay(name, isClubElite) {
-        const icon = isClubElite ? LegionCore.formatEliteIcon('Элита Легиона Силы') : '';
-        return `${icon}${LegionCore.formatAthleteLink(name)}`;
+    getAthleteNameDisplay(name, options) {
+        const opts = options || {};
+        if (opts.hideTop25) {
+            return LegionCore.formatAthleteLink(name);
+        }
+        const athlete = opts.athlete
+            || (LegionCore.state.athletesData || []).find((a) => a.name === name);
+        const badge = athlete && LegionCore.isClubTop25(athlete)
+            ? LegionCore.formatTop25Icon()
+            : '';
+        return `${LegionCore.formatAthleteLink(name)}${badge}`;
     },
 
     buildRatingTableRows(athletes, options) {
@@ -162,13 +169,11 @@ const LegionClubPage = {
             const rank = a.overallRank;
             const cellClass = LegionCore.getCellClass(rank);
             const rowClass = opts.elite ? this.getClubEliteRowClass(rank) : '';
-            const rankLabel = rank === 1
-                ? `<strong>${rank}</strong><span class="rank-crown" aria-hidden="true">👑</span>`
-                : `<strong>${rank}</strong>`;
+            const rankLabel = `<strong>${rank}</strong>`;
             html += `<tr class="${rowClass}">
                 <td class="${cellClass}">${rankLabel}</td>
-                <td>${this.getAthleteNameDisplay(a.name, opts.elite)}</td>
-                <td>${LegionCore.formatRankDisplay(a.name)}</td>
+                <td>${this.getAthleteNameDisplay(a.name, { athlete: a, hideTop25: !!opts.elite })}</td>
+                <td>${LegionCore.formatRankDisplay(a.name, a.coachSlug)}</td>
                 <td class="col-points"><strong>${a.total}</strong></td>
             </tr>`;
         });
@@ -234,9 +239,9 @@ const LegionClubPage = {
             const cellClass = LegionCore.getCellClass(rank);
             html += `<tr>
                 <td class="${cellClass}"><strong>${rank}</strong></td>
-                <td>${this.getAthleteNameDisplay(a.name, this.isClubElite(a))}</td>
-                <td>${LegionCore.formatRankDisplay(a.name)}</td>
-                <td>${a[exKey]}</td>
+                <td>${this.getAthleteNameDisplay(a.name, { athlete: a })}</td>
+                <td>${LegionCore.formatRankDisplay(a.name, a.coachSlug)}</td>
+                <td class="col-result">${a[exKey]}</td>
                 <td class="col-points">${a[exKey + '_points']}</td>
             </tr>`;
         });
@@ -276,14 +281,11 @@ const LegionClubPage = {
 
         LegionUI.applyPhotoFrame(document.getElementById('modal-photo-frame'), clubRank, false, isClubElite);
 
-        document.getElementById('modal-photo').src = athlete.photo && athlete.photo.startsWith('http')
-            ? athlete.photo
-            : "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22%3E%3Ccircle cx=%2260%22 cy=%2260%22 r=%2250%22 fill=%22%23222%22/%3E%3Ctext x=%2260%22 y=%2270%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23888%22%3E👤%3C/text%3E%3C/svg%3E";
-        document.getElementById('modal-name').innerHTML = isClubElite
-            ? `<span class="modal-name-elite">${LegionCore.formatEliteIcon()}${name}</span>`
-            : name;
+        LegionCore.setModalPhoto(athlete);
+        document.getElementById('modal-name').textContent = name;
+        LegionCore.fillAthleteModalAge(athlete);
         document.getElementById('modal-league').innerHTML = isClubElite
-            ? `<span class="club-elite-badge">${LegionConfig.ELITE_ICON} Элита Легиона Силы · ТОП-25</span>`
+            ? '<span class="club-elite-badge">Элита Легиона Силы · ТОП-25</span>'
             : '';
         const coachEl = document.getElementById('modal-coach');
         if (coachEl) coachEl.textContent = athlete.coach ? 'Тренер: ' + athlete.coach : '';
@@ -298,6 +300,7 @@ const LegionClubPage = {
         }
 
         LegionCore.fillAthleteModalExtras(name, athlete);
+        LegionCore.updateAthleteModalMoreLink(athlete);
         modal.classList.add('active');
     },
 

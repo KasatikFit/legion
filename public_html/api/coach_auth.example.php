@@ -1,10 +1,10 @@
 <?php
 /**
- * Пароли режима тренировки для каждого тренера.
+ * Резервные пароли режима тренировки (если не заданы в MySQL legion_coach_auth).
  * Скопируйте в coach_auth.php на сервере (не в Git).
  *
- * Для каждого slug из api/coaches.php задайте пароль или хэш:
- * password_hash('ваш-пароль', PASSWORD_DEFAULT)
+ * Новых тренеров удобнее добавлять через /admin/ — пароль сразу попадёт в MySQL.
+ * Приоритет: legion_coach_auth (БД) → этот файл.
  */
 return array(
     'yakutin' => array(

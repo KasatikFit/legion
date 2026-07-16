@@ -26,34 +26,21 @@ $legionVer = legion_asset_version();
 
     <div id="club-stats" class="club-stats no-print"></div>
 
-    <div class="navbar no-print">
-        <span class="nav-tab active-tab">Общий рейтинг</span>
-        <div class="dropdown">
-            <button type="button" class="dropbtn" aria-haspopup="true" aria-expanded="false">Тренеры ▼</button>
-            <div class="dropdown-content">
-                <?php foreach ($coaches as $slug => $coach): ?>
-                <a href="/<?php echo htmlspecialchars($slug); ?>/"><?php echo legion_coach_nav_icon(); ?> <?php echo htmlspecialchars($coach['name']); ?></a>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <a href="/rating-info/" class="nav-tab">О системе рейтинга</a>
-    </div>
+    <?php
+    $legionNavActive = 'club';
+    require __DIR__ . '/legion-site-nav.php';
+    ?>
 
     <?php require __DIR__ . '/search-bar.php'; ?>
 
-    <div class="tabs no-print">
-        <div class="tab active" onclick="switchTab('overall')">Общий рейтинг</div>
-        <div class="tab" onclick="switchTab('push')">Отжимания</div>
-        <div class="tab" onclick="switchTab('pull')">Подтягивания</div>
-        <div class="tab" onclick="switchTab('hang')">Вис (сек)</div>
-        <div class="tab" onclick="switchTab('burpee')">Бёрпи за 1 мин</div>
-        <div class="tab" onclick="switchTab('crunch')">Скручивания</div>
-        <div class="tab" onclick="switchTab('jump')">Прыжок в длину (см)</div>
-        <div class="tab" onclick="switchTab('hall')">🏆 Зал славы</div>
-    </div>
+    <?php
+    $legionExerciseTabsIncludeHall = true;
+    $legionExerciseTabActive = 'overall';
+    require __DIR__ . '/legion-exercise-tabs.php';
+    ?>
 
     <div id="content">
-        <p class="note">Загрузка рейтинга…</p>
+        <p class="note">Загрузка общего рейтинга с сервера…</p>
     </div>
 
     <?php require __DIR__ . '/modals-club.php'; ?>

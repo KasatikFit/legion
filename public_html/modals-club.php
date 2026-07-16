@@ -6,6 +6,7 @@
                 <div id="modal-photo-frame" class="photo-frame league-none">
                     <img id="modal-photo" class="athlete-photo" src="" alt="Фото" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22%3E%3Ccircle cx=%2260%22 cy=%2260%22 r=%2250%22 fill=%22%23222%22/%3E%3Ctext x=%2260%22 y=%2270%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23888%22%3E👤%3C/text%3E%3C/svg%3E'">
                 </div>
+                <p id="modal-age" class="modal-athlete-age" hidden></p>
                 <h2 id="modal-name"></h2>
                 <p id="modal-league"></p>
                 <p><span id="modal-coach" class="coach-label"></span></p>
@@ -23,6 +24,9 @@
             <div id="modal-rank-info" class="modal-rank-info"></div>
             <div id="modal-achievements" class="achievements"></div>
             <div id="modal-progress" class="modal-progress-block"></div>
+            <div class="modal-footer no-print">
+                <a href="#" id="athlete-modal-more" class="athlete-modal-more-btn" hidden>Подробнее</a>
+            </div>
         </div>
     </div>
 

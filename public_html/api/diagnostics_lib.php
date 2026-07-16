@@ -218,6 +218,227 @@ function legion_diagnostics_validate_ranks_csv($text) {
     );
 }
 
+function legion_diagnostics_mysql_required_tables() {
+    return array(
+        'pilot_meta',
+        'pilot_athletes',
+        'pilot_results',
+        'pilot_rank_marks',
+        'pilot_history',
+        'pilot_rank_history',
+        'pilot_achievements',
+        'legion_coach_elite',
+        'legion_scope_achievements',
+        'legion_scope_snapshots',
+        'legion_coaches',
+        'legion_coach_auth',
+    );
+}
+
+function legion_diagnostics_mysql_table_exists(PDO $pdo, $driver, $table) {
+    if ($driver === 'mysql') {
+        $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
+        $stmt->execute(array($table));
+        return (bool) $stmt->fetchColumn();
+    }
+    $stmt = $pdo->prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?");
+    $stmt->execute(array($table));
+    return (bool) $stmt->fetchColumn();
+}
+
+function legion_diagnostics_check_mysql() {
+    $root = dirname(__DIR__);
+    $items = array();
+    $configPath = $root . '/api/pilot_db_config.php';
+
+    if (!is_file($configPath)) {
+        $items[] = array(
+            'name' => 'api/pilot_db_config.php',
+            'status' => 'error',
+            'detail' => 'не найден — скопируйте из pilot_db_config.example.php',
+        );
+        return array('items' => $items, 'enabled' => false, 'driver' => '', 'pdo' => null);
+    }
+
+    $items[] = array(
+        'name' => 'api/pilot_db_config.php',
+        'status' => 'ok',
+        'detail' => 'найден',
+    );
+
+    require_once __DIR__ . '/pilot_db_lib.php';
+    $cfg = legion_pilot_db_config();
+    $driver = isset($cfg['driver']) ? $cfg['driver'] : 'sqlite';
+    $items[] = array(
+        'name' => 'Драйвер БД',
+        'status' => $driver === 'mysql' ? 'ok' : 'warn',
+        'detail' => $driver === 'mysql' ? 'MySQL' : 'SQLite (для продакшена укажите mysql в конфиге)',
+    );
+
+    $pdo = legion_pilot_db_pdo();
+    if (!$pdo instanceof PDO) {
+        $items[] = array(
+            'name' => 'Подключение к БД',
+            'status' => 'error',
+            'detail' => 'не удалось подключиться — проверьте хост, имя базы, логин и пароль',
+        );
+        return array('items' => $items, 'enabled' => false, 'driver' => $driver, 'pdo' => null);
+    }
+
+    $items[] = array(
+        'name' => 'Подключение к БД',
+        'status' => 'ok',
+        'detail' => $driver === 'mysql'
+            ? 'соединение с ' . (isset($cfg['dbname']) ? $cfg['dbname'] : 'MySQL') . ' установлено'
+            : 'SQLite: ' . (isset($cfg['path']) ? basename($cfg['path']) : 'pilot-demo.sqlite'),
+    );
+
+    require_once __DIR__ . '/coaches_lib.php';
+    try {
+        legion_coaches_ensure_schema($pdo);
+    } catch (Exception $e) {
+        $items[] = array(
+            'name' => 'legion_coaches (схема)',
+            'status' => 'error',
+            'detail' => $e->getMessage(),
+        );
+    }
+
+    $missingTables = array();
+    foreach (legion_diagnostics_mysql_required_tables() as $table) {
+        if (!legion_diagnostics_mysql_table_exists($pdo, $driver, $table)) {
+            $missingTables[] = $table;
+        }
+    }
+    if (!empty($missingTables)) {
+        $items[] = array(
+            'name' => 'Таблицы',
+            'status' => 'error',
+            'detail' => 'нет таблиц: ' . implode(', ', $missingTables) . ' — выполните api/migrations/pilot_mysql.sql и coaches_mysql.sql',
+        );
+    } else {
+        $items[] = array(
+            'name' => 'Таблицы',
+            'status' => 'ok',
+            'detail' => 'все ' . count(legion_diagnostics_mysql_required_tables()) . ' таблиц на месте',
+        );
+        try {
+            legion_coaches_seed_from_legacy($pdo);
+            $coachCount = (int) $pdo->query('SELECT COUNT(*) FROM legion_coaches')->fetchColumn();
+            $visibleCount = (int) $pdo->query('SELECT COUNT(*) FROM legion_coaches WHERE is_visible = 1')->fetchColumn();
+            $items[] = array(
+                'name' => 'Реестр тренеров (legion_coaches)',
+                'status' => $coachCount > 0 ? 'ok' : 'warn',
+                'detail' => $coachCount . ' в базе, ' . $visibleCount . ' на главной клуба',
+            );
+            $authDbCount = (int) $pdo->query('SELECT COUNT(*) FROM legion_coach_auth')->fetchColumn();
+            $items[] = array(
+                'name' => 'Пароли тренировки (legion_coach_auth)',
+                'status' => 'ok',
+                'detail' => $authDbCount . ' в MySQL; остальные — из api/coach_auth.php',
+            );
+        } catch (Exception $e) {
+            $items[] = array(
+                'name' => 'Реестр тренеров',
+                'status' => 'error',
+                'detail' => $e->getMessage(),
+            );
+        }
+    }
+
+    $coachAuthPath = $root . '/api/coach_auth.php';
+    $items[] = array(
+        'name' => 'api/coach_auth.php',
+        'status' => is_file($coachAuthPath) ? 'ok' : 'warn',
+        'detail' => is_file($coachAuthPath)
+            ? 'резервные пароли (приоритет у MySQL legion_coach_auth)'
+            : 'не найден — пароли только в MySQL или задайте через /admin/',
+    );
+
+    $adminAuthPath = $root . '/api/admin_auth.php';
+    require_once __DIR__ . '/admin_auth_lib.php';
+    $items[] = array(
+        'name' => 'api/admin_auth.php',
+        'status' => legion_admin_auth_is_configured() ? 'ok' : 'warn',
+        'detail' => legion_admin_auth_is_configured()
+            ? 'суперадмин настроен — /admin/'
+            : 'не найден — скопируйте из admin_auth.example.php',
+    );
+
+    $photosRoot = $root . '/images/coach-athletes';
+    $photosWritable = is_dir($photosRoot) ? is_writable($photosRoot) : is_writable($root . '/images');
+    $items[] = array(
+        'name' => 'images/coach-athletes/',
+        'status' => $photosWritable ? 'ok' : 'warn',
+        'detail' => $photosWritable
+            ? 'каталог доступен для загрузки фото'
+            : 'нет прав на запись — фото спортсменов не сохранятся',
+    );
+
+    return array(
+        'items' => $items,
+        'enabled' => empty($missingTables),
+        'driver' => $driver,
+        'pdo' => $pdo,
+    );
+}
+
+function legion_diagnostics_check_coach_mysql($slug, $coach, PDO $pdo) {
+    require_once __DIR__ . '/coach_data_lib.php';
+
+    $root = dirname(__DIR__);
+    $result = array(
+        'dataStatus' => 'error',
+        'dataMessage' => '',
+        'trainingStatus' => 'error',
+        'trainingMessage' => '',
+    );
+
+    try {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM pilot_athletes WHERE coach_slug = ?');
+        $stmt->execute(array($slug));
+        $count = (int) $stmt->fetchColumn();
+
+        $updatedAt = '';
+        if (function_exists('legion_pilot_db_meta_get')) {
+            $updatedAt = legion_pilot_db_meta_get($pdo, 'updated_at', '', $slug);
+        }
+
+        if ($count > 0) {
+            $result['dataStatus'] = 'ok';
+            $result['dataMessage'] = $count . ' спортсменов в MySQL'
+                . ($updatedAt !== '' ? ', обновлено ' . $updatedAt : '');
+        } else {
+            $result['dataStatus'] = 'warn';
+            $result['dataMessage'] = 'в MySQL нет спортсменов — импортируйте список в режиме тренировки';
+        }
+    } catch (Exception $e) {
+        $result['dataMessage'] = $e->getMessage();
+        return $result;
+    }
+
+    $trainingPath = $root . '/' . $slug . '/training.php';
+    if (!is_file($trainingPath)) {
+        $result['trainingMessage'] = 'нет ' . $slug . '/training.php';
+        return $result;
+    }
+
+    $photosDir = legion_coach_photos_dir($slug);
+    if (!is_dir($photosDir)) {
+        @mkdir($photosDir, 0755, true);
+    }
+    if (!is_dir($photosDir) || !is_writable($photosDir)) {
+        $result['trainingStatus'] = 'warn';
+        $result['trainingMessage'] = 'training.php есть, но нет прав на каталог фото';
+        return $result;
+    }
+
+    $result['trainingStatus'] = 'ok';
+    $result['trainingMessage'] = 'режим тренировки и каталог фото готовы';
+
+    return $result;
+}
+
 function legion_diagnostics_check_coach_ranks($slug, $coach) {
     require_once __DIR__ . '/ranks_lib.php';
 
@@ -289,6 +510,10 @@ function legion_diagnostics_run() {
         'js/legion-ui.js',
         'css/legion.css',
         'api/coaches.php',
+        'api/coaches_lib.php',
+        'api/coaches_legacy.php',
+        'api/admin_auth_lib.php',
+        'admin/index.php',
         'api/get_elite.php',
         'api/save_elite.php',
         'api/verify_rotation_password.php',
@@ -297,6 +522,8 @@ function legion_diagnostics_run() {
         'api/get_ranks.php',
         'api/get_page_data.php',
         'api/page_data_lib.php',
+        'api/pilot_db_lib.php',
+        'training-page.php',
         'diagnostics/index.php',
     );
 
@@ -311,16 +538,13 @@ function legion_diagnostics_run() {
     }
     $checks[] = array('group' => 'Файлы', 'items' => $fileItems);
 
+    $mysqlReport = legion_diagnostics_check_mysql();
+    $checks[] = array('group' => 'MySQL', 'items' => $mysqlReport['items']);
+
     $rotationPath = $root . '/api/rotation_config.php';
-    $cronConfigPath = $root . '/api/cron_config.php';
     $checks[] = array(
-        'group' => 'Ротация и снимки',
+        'group' => 'Ротация элиты',
         'items' => array(
-            array(
-                'name' => 'api/cron_config.php',
-                'status' => is_file($cronConfigPath) ? 'ok' : 'warn',
-                'detail' => is_file($cronConfigPath) ? 'настроен' : 'не найден — ежедневный снимок не запустится',
-            ),
             array(
                 'name' => 'api/rotation_config.php',
                 'status' => is_file($rotationPath) ? 'ok' : 'warn',
@@ -330,7 +554,7 @@ function legion_diagnostics_run() {
     );
 
     $apiDir = $root . '/api';
-    $jsonFiles = array('elite.json', 'history.json', 'rank_history.json', 'last_ranks.json', 'achievements.json', 'last_results.json', 'snapshot_meta.json');
+    $jsonFiles = array('elite.json', 'history.json', 'rank_history.json', 'last_ranks.json', 'achievements.json');
     $jsonItems = array();
     foreach ($jsonFiles as $file) {
         $path = $apiDir . '/' . $file;
@@ -373,7 +597,14 @@ function legion_diagnostics_run() {
 
     $coaches = legion_coaches_config();
     $coachItems = array();
+    $mysqlPdo = ($mysqlReport['enabled'] && $mysqlReport['pdo'] instanceof PDO) ? $mysqlReport['pdo'] : null;
+    $allCoachesMysql = true;
+
     foreach ($coaches as $slug => $coach) {
+        if (!legion_coach_uses_mysql($slug)) {
+            $allCoachesMysql = false;
+        }
+
         $pagePath = $root . '/' . $slug . '/index.php';
         if (!is_file($pagePath)) {
             $coachItems[] = array(
@@ -384,36 +615,78 @@ function legion_diagnostics_run() {
             continue;
         }
 
+        if (legion_coach_uses_mysql($slug)) {
+            if (!$mysqlPdo) {
+                $coachItems[] = array(
+                    'name' => $coach['name'] . ' — MySQL',
+                    'status' => 'error',
+                    'detail' => 'база недоступна — см. раздел MySQL выше',
+                );
+                continue;
+            }
+
+            $mysqlCoach = legion_diagnostics_check_coach_mysql($slug, $coach, $mysqlPdo);
+            $coachItems[] = array(
+                'name' => $coach['name'] . ' — данные',
+                'status' => $mysqlCoach['dataStatus'],
+                'detail' => $mysqlCoach['dataMessage'],
+            );
+            $coachItems[] = array(
+                'name' => $coach['name'] . ' — тренировка',
+                'status' => $mysqlCoach['trainingStatus'],
+                'detail' => $mysqlCoach['trainingMessage'],
+            );
+            continue;
+        }
+
         $table = legion_diagnostics_check_coach_table($slug, $coach);
         $coachItems[] = array(
-            'name' => $coach['name'] . ' — результаты',
+            'name' => $coach['name'] . ' — результаты (Google)',
             'status' => $table['status'],
             'detail' => $table['message'],
         );
 
         $ranks = legion_diagnostics_check_coach_ranks($slug, $coach);
         $coachItems[] = array(
-            'name' => $coach['name'] . ' — ранги',
+            'name' => $coach['name'] . ' — ранги (Google)',
             'status' => $ranks['status'],
             'detail' => $ranks['message'],
         );
     }
-    $checks[] = array('group' => 'Тренеры, результаты и ранги', 'items' => $coachItems);
+    $checks[] = array('group' => 'Тренеры', 'items' => $coachItems);
 
-    require_once __DIR__ . '/ranks_lib.php';
-    $allRanks = legion_load_all_ranks();
-    $checks[] = array(
-        'group' => 'API рангов',
-        'items' => array(
-            array(
-                'name' => 'api/get_ranks.php',
-                'status' => $allRanks['loaded'] > 0 ? 'ok' : 'error',
-                'detail' => $allRanks['loaded'] > 0
-                    ? 'Загружено ' . $allRanks['loaded'] . ' спортсменов с рангами'
-                    : 'Ни одного ранга не сопоставлено — проверьте ФИО в таблицах',
+    if ($allCoachesMysql && $mysqlReport['enabled']) {
+        require_once __DIR__ . '/page_data_lib.php';
+        $clubPayload = legion_build_club_page_data_from_mysql();
+        $athleteCount = count($clubPayload['athletes']);
+        $checks[] = array(
+            'group' => 'Клубный рейтинг',
+            'items' => array(
+                array(
+                    'name' => 'api/get_page_data.php (MySQL)',
+                    'status' => $athleteCount > 0 ? 'ok' : 'warn',
+                    'detail' => $athleteCount > 0
+                        ? 'собрано ' . $athleteCount . ' спортсменов из ' . (int) $clubPayload['loaded'] . ' групп'
+                        : 'нет спортсменов в базе — импортируйте данные тренеров',
+                ),
             ),
-        ),
-    );
+        );
+    } else {
+        require_once __DIR__ . '/ranks_lib.php';
+        $allRanks = legion_load_all_ranks();
+        $checks[] = array(
+            'group' => 'API рангов',
+            'items' => array(
+                array(
+                    'name' => 'api/get_ranks.php',
+                    'status' => $allRanks['loaded'] > 0 ? 'ok' : 'error',
+                    'detail' => $allRanks['loaded'] > 0
+                        ? 'загружено ' . $allRanks['loaded'] . ' спортсменов с рангами из Google Таблиц'
+                        : 'ни одного ранга не сопоставлено — проверьте ФИО в таблицах',
+                ),
+            ),
+        );
+    }
 
     $summary = array('ok' => 0, 'warn' => 0, 'error' => 0);
     foreach ($checks as $group) {

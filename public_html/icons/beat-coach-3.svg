@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label=">@>=0">
+  <defs>
+    <linearGradient id="crown" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+    <linearGradient id="jewel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e31837"/>
+      <stop offset="100%" stop-color="#8b0000"/>
+    </linearGradient>
+  </defs>
+  <path d="M10 44 L14 24 L24 34 L32 16 L40 34 L50 24 L54 44 Z" fill="url(#crown)" stroke="#a16207" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="10" y="44" width="44" height="10" rx="2" fill="url(#crown)" stroke="#a16207" stroke-width="2"/>
+  <circle cx="20" cy="38" r="3" fill="url(#jewel)"/>
+  <circle cx="32" cy="30" r="3.5" fill="url(#jewel)"/>
+  <circle cx="44" cy="38" r="3" fill="url(#jewel)"/>
+  <text x="32" y="52" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9" font-weight="bold" fill="#713f12">x3</text>
+</svg>

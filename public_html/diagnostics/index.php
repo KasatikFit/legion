@@ -31,14 +31,18 @@ function legion_diag_status_class($status) {
         <img src="/images/legion-logo.png" alt="Легион Самара" class="site-logo">
         <div class="site-header-text">
             <h1>Диагностика сайта</h1>
-            <p class="site-tagline">Проверка файлов, API и Google Таблиц</p>
+            <p class="site-tagline">Проверка файлов, MySQL, API и тренеров</p>
         </div>
     </header>
 
-    <nav class="navbar no-print guide-nav">
-        <a href="/" class="nav-tab">← К рейтингу</a>
-        <a href="?refresh=1" class="nav-tab">Обновить проверку</a>
-    </nav>
+    <?php
+    $legionNavMode = 'diagnostics';
+    $legionNavActive = 'diagnostics';
+    $legionNavExtraLinks = array(
+        array('href' => '?refresh=1', 'label' => 'Обновить проверку', 'active' => false),
+    );
+    require dirname(__DIR__) . '/legion-site-nav.php';
+    ?>
 
     <main class="guide-main diag-main">
         <section class="diag-summary">
@@ -96,8 +100,9 @@ function legion_diag_status_class($status) {
             <h2>Памятка</h2>
             <ul>
                 <li>Перед деплоем меняйте версию только в <code>legion-version.php</code> и заливайте все изменённые файлы.</li>
+                <li><code>api/pilot_db_config.php</code> и <code>api/coach_auth.php</code> не в Git — создайте на сервере из <code>*.example.php</code>.</li>
                 <li><code>api/rotation_config.php</code> не в Git — создайте на сервере из <code>rotation_config.example.php</code>.</li>
-                <li>Если у тренера нет колонки — добавьте её в Google Таблицу с нужным словом в заголовке (например «скручиван»).</li>
+                <li>История результатов пишется в MySQL при сохранении в режиме тренировки.</li>
             </ul>
         </section>
     </main>

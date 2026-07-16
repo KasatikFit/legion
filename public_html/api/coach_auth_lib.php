@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/coaches.php';
+require_once __DIR__ . '/coaches_lib.php';
 require_once __DIR__ . '/coach_data_lib.php';
 
 function legion_coach_auth_config_path() {
@@ -25,6 +26,9 @@ function legion_coach_auth_map() {
 
 function legion_coach_auth_is_configured($coachSlug) {
     $coachSlug = legion_coach_normalize_slug($coachSlug);
+    if (legion_coach_auth_hash_from_db($coachSlug) !== '') {
+        return true;
+    }
     $map = legion_coach_auth_map();
     if (isset($map[$coachSlug]) && is_array($map[$coachSlug])) {
         $entry = $map[$coachSlug];
@@ -40,6 +44,10 @@ function legion_coach_auth_is_configured($coachSlug) {
 
 function legion_coach_verify_password($coachSlug, $password) {
     $coachSlug = legion_coach_normalize_slug($coachSlug);
+    $hash = legion_coach_auth_hash_from_db($coachSlug);
+    if ($hash !== '' && password_verify((string) $password, $hash)) {
+        return true;
+    }
     $map = legion_coach_auth_map();
     if (isset($map[$coachSlug]) && is_array($map[$coachSlug])) {
         $entry = $map[$coachSlug];

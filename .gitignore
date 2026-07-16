@@ -7,7 +7,10 @@ public_html/api/data/
 public_html/api/rotation_config.php
 public_html/api/pilot_auth.php
 public_html/api/coach_auth.php
+public_html/api/admin_auth.php
 public_html/api/pilot_db_config.php
+public_html/api/report_token_config.php
+public_html/api/yandex_gpt_config.php
 public_html/api/data/*.sqlite
 public_html/images/pilot-athletes/*
 !public_html/images/pilot-athletes/.gitkeep

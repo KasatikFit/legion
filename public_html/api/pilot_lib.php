@@ -9,6 +9,15 @@ require_once __DIR__ . '/coach_auth_lib.php';
 define('LEGION_PILOT_SLUG', 'pilot-demo');
 define('LEGION_PILOT_HISTORY_PER_ATHLETE', 50);
 
+class LegionPilotNeedsPatronymicException extends InvalidArgumentException {
+    public $baseName;
+
+    public function __construct($baseName) {
+        $this->baseName = legion_normalize_person_name($baseName);
+        parent::__construct('Укажите первую букву отчества');
+    }
+}
+
 function legion_pilot_now_ru() {
     return date('d.m.Y, H:i:s');
 }
@@ -213,7 +222,7 @@ function legion_pilot_append_history_entry($name, $exercise, $oldVal, $newVal) {
 
     $oldNum = is_numeric($oldVal) ? (float) $oldVal : null;
     $newNum = is_numeric($newVal) ? (float) $newVal : null;
-    if ($oldNum !== null && $newNum !== null && $oldNum === $newNum) {
+    if ($oldNum !== null && $newNum !== null && $newNum <= $oldNum) {
         return $data;
     }
 
@@ -357,7 +366,10 @@ function legion_pilot_update_athlete_photo($name, $photoPath, $coachSlug = LEGIO
     }
 
     $data['athletes'][$idx]['photo'] = (string) $photoPath;
-    return legion_pilot_save_dataset($data);
+    $saved = legion_pilot_save_dataset($data);
+    require_once __DIR__ . '/page_data_lib.php';
+    legion_page_data_cache_clear($coachSlug);
+    return $saved;
 }
 
 function legion_pilot_remove_athlete_photo($name, $coachSlug = LEGION_PILOT_SLUG) {
@@ -379,7 +391,10 @@ function legion_pilot_remove_athlete_photo($name, $coachSlug = LEGION_PILOT_SLUG
     }
 
     $data['athletes'][$idx]['photo'] = '';
-    return legion_pilot_save_dataset($data);
+    $saved = legion_pilot_save_dataset($data);
+    require_once __DIR__ . '/page_data_lib.php';
+    legion_page_data_cache_clear($coachSlug);
+    return $saved;
 }
 
 function legion_pilot_upload_athlete_photo($name, array $file, $coachSlug = LEGION_PILOT_SLUG) {
@@ -532,13 +547,14 @@ function legion_pilot_default_dataset() {
     );
 }
 
-function legion_pilot_load_dataset($coachSlug = LEGION_PILOT_SLUG) {
+function legion_pilot_load_dataset($coachSlug = LEGION_PILOT_SLUG, array $options = array()) {
     $coachSlug = legion_coach_normalize_slug($coachSlug);
     if (function_exists('legion_pilot_db_enabled') && legion_pilot_db_enabled()) {
-        $data = legion_pilot_db_load_dataset($coachSlug);
+        $data = legion_pilot_db_load_dataset($coachSlug, $options);
         legion_pilot_ensure_meta_arrays($data);
         $data['slug'] = $coachSlug;
-        if (empty($data['achievements']) && !empty($data['athletes'])) {
+        $recompute = !array_key_exists('recomputeAchievements', $options) || $options['recomputeAchievements'];
+        if ($recompute && empty($data['achievements']) && !empty($data['athletes'])) {
             $data = legion_pilot_recompute_achievements($data);
             legion_pilot_save_dataset($data, false);
         }
@@ -639,9 +655,9 @@ function legion_pilot_build_rank_map(array $athletes, $coachSlug = LEGION_PILOT_
     return $map;
 }
 
-function legion_pilot_dataset_for_api($coachSlug = LEGION_PILOT_SLUG) {
+function legion_pilot_dataset_for_api($coachSlug = LEGION_PILOT_SLUG, array $options = array()) {
     $coachSlug = legion_coach_normalize_slug($coachSlug);
-    $data = legion_pilot_load_dataset($coachSlug);
+    $data = legion_pilot_load_dataset($coachSlug, $options);
     $meta = legion_coach_meta($coachSlug);
     $athletes = array();
     foreach ($data['athletes'] as $row) {
@@ -659,6 +675,14 @@ function legion_pilot_dataset_for_api($coachSlug = LEGION_PILOT_SLUG) {
             'coachSlug' => $meta['slug'],
             'rankMarks' => $marks,
         );
+        $birthdate = isset($row['birthdate']) && $row['birthdate'] !== '' && $row['birthdate'] !== null
+            ? (string) $row['birthdate']
+            : null;
+        $item['birthdate'] = $birthdate;
+        $age = legion_pilot_compute_age($birthdate);
+        if ($age !== null) {
+            $item['age'] = $age;
+        }
         foreach (legion_pilot_exercise_keys() as $key) {
             $item[$key] = isset($row[$key]) && is_numeric($row[$key]) ? (float) $row[$key] : 0;
         }
@@ -882,7 +906,7 @@ function legion_pilot_update_result($name, $exercise, $value, $coachSlug = LEGIO
     $data['athletes'][$idx][$exercise] = $value;
     legion_pilot_ensure_meta_arrays($data);
 
-    if ($oldVal !== $value) {
+    if ($value > $oldVal) {
         $data['history'][] = array(
             'id' => legion_pilot_new_history_id(),
             'date' => legion_pilot_now_ru(),
@@ -899,28 +923,245 @@ function legion_pilot_update_result($name, $exercise, $value, $coachSlug = LEGIO
     return legion_pilot_save_dataset($data);
 }
 
-function legion_pilot_add_athlete($name, $coachSlug = LEGION_PILOT_SLUG) {
+function legion_pilot_normalize_birthdate($value) {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return null;
+    }
+    $dt = DateTime::createFromFormat('Y-m-d', $value);
+    if (!$dt || $dt->format('Y-m-d') !== $value) {
+        throw new InvalidArgumentException('Некорректная дата рождения');
+    }
+    $today = new DateTime('today');
+    if ($dt > $today) {
+        throw new InvalidArgumentException('Дата рождения не может быть в будущем');
+    }
+    $min = new DateTime('-100 years');
+    if ($dt < $min) {
+        throw new InvalidArgumentException('Слишком ранняя дата рождения');
+    }
+    return $value;
+}
+
+function legion_pilot_compute_age($birthdate) {
+    if ($birthdate === null || $birthdate === '') {
+        return null;
+    }
+    try {
+        $born = new DateTime((string) $birthdate);
+        $today = new DateTime('today');
+        return (int) $born->diff($today)->y;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+function legion_pilot_update_birthdate($name, $birthdate, $coachSlug = LEGION_PILOT_SLUG) {
     $coachSlug = legion_coach_normalize_slug($coachSlug);
+    $normalized = legion_pilot_normalize_birthdate($birthdate);
+
+    $data = legion_pilot_load_dataset($coachSlug);
+    $idx = legion_pilot_find_athlete_index($data['athletes'], $name);
+    if ($idx < 0) {
+        throw new InvalidArgumentException('Спортсмен не найден');
+    }
+
+    $data['athletes'][$idx]['birthdate'] = $normalized;
+    return legion_pilot_save_dataset($data);
+}
+
+function legion_pilot_name_base($name) {
+    $name = legion_normalize_person_name($name);
+    if ($name === '') {
+        return '';
+    }
+    $parts = preg_split('/\s+/u', $name);
+    if (count($parts) >= 2) {
+        return $parts[0] . ' ' . $parts[1];
+    }
+    return $name;
+}
+
+function legion_pilot_name_is_base_only($name) {
+    $name = legion_normalize_person_name($name);
+    return $name !== '' && $name === legion_pilot_name_base($name);
+}
+
+function legion_pilot_group_has_base_name(array $athletes, $baseName) {
+    $normBase = legion_normalize_person_name($baseName);
+    if ($normBase === '') {
+        return false;
+    }
+    foreach ($athletes as $row) {
+        if (!is_array($row) || empty($row['name'])) {
+            continue;
+        }
+        $rowBase = legion_pilot_name_base($row['name']);
+        if (legion_normalize_person_name($rowBase) === $normBase) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function legion_pilot_append_patronymic_initial($name, $letter) {
+    $base = legion_pilot_name_base($name);
+    if ($base === '') {
+        throw new InvalidArgumentException('Укажите ФИО');
+    }
+    $letter = trim((string) $letter);
+    if ($letter === '') {
+        throw new InvalidArgumentException('Укажите первую букву отчества');
+    }
+    if (function_exists('mb_substr')) {
+        $letter = mb_strtoupper(mb_substr($letter, 0, 1, 'UTF-8'), 'UTF-8');
+    } else {
+        $letter = strtoupper(substr($letter, 0, 1));
+    }
+    if (!preg_match('/^\p{L}$/u', $letter)) {
+        throw new InvalidArgumentException('Укажите букву отчества');
+    }
+    return legion_normalize_person_name($base . ' ' . $letter . '.');
+}
+
+function legion_pilot_assert_can_add_athlete_name(array $athletes, $name) {
     $name = legion_normalize_person_name($name);
     if ($name === '') {
         throw new InvalidArgumentException('Укажите ФИО');
     }
 
-    $data = legion_pilot_load_dataset($coachSlug);
-    if (legion_pilot_find_athlete_index($data['athletes'], $name) >= 0) {
+    if (legion_pilot_find_athlete_index($athletes, $name) >= 0) {
+        if (legion_pilot_name_is_base_only($name)) {
+            throw new LegionPilotNeedsPatronymicException(legion_pilot_name_base($name));
+        }
         throw new InvalidArgumentException('Спортсмен уже есть в группе');
     }
+
+    $base = legion_pilot_name_base($name);
+    if (legion_pilot_name_is_base_only($name) && legion_pilot_group_has_base_name($athletes, $base)) {
+        throw new LegionPilotNeedsPatronymicException($base);
+    }
+
+    return $name;
+}
+
+function legion_pilot_add_athlete($name, $coachSlug = LEGION_PILOT_SLUG, $patronymicInitial = '', $birthdate = null) {
+    $coachSlug = legion_coach_normalize_slug($coachSlug);
+    $name = legion_normalize_person_name($name);
+    if (trim((string) $patronymicInitial) !== '') {
+        $name = legion_pilot_append_patronymic_initial($name, $patronymicInitial);
+    }
+
+    $data = legion_pilot_load_dataset($coachSlug);
+    $name = legion_pilot_assert_can_add_athlete_name($data['athletes'], $name);
 
     $row = array(
         'name' => $name,
         'photo' => '',
         'rankMarks' => legion_pilot_default_marks(0, 0, 0),
     );
+    if ($birthdate !== null && trim((string) $birthdate) !== '') {
+        $row['birthdate'] = legion_pilot_normalize_birthdate($birthdate);
+    }
     foreach (legion_pilot_exercise_keys() as $key) {
         $row[$key] = 0;
     }
     $data['athletes'][] = $row;
     return legion_pilot_save_dataset($data);
+}
+
+function legion_pilot_parse_athlete_name_list($text) {
+    $text = preg_replace('/^\xEF\xBB\xBF/', '', (string) $text);
+    $lines = preg_split('/\r\n|\r|\n/', $text);
+    $names = array();
+    $seen = array();
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+        if (strpos($line, "\t") !== false) {
+            $parts = explode("\t", $line);
+            $line = trim($parts[0]);
+        }
+        if ($line === '') {
+            continue;
+        }
+        $lower = function_exists('mb_strtolower') ? mb_strtolower($line, 'UTF-8') : strtolower($line);
+        if (preg_match('/^(фио|имя|ф\.?\s*и\.?\s*о\.?|name|спортсмен)\b/u', $lower)) {
+            continue;
+        }
+        $norm = legion_normalize_person_name($line);
+        if ($norm === '' || isset($seen[$norm])) {
+            continue;
+        }
+        $seen[$norm] = true;
+        $names[] = $norm;
+    }
+
+    return $names;
+}
+
+function legion_pilot_add_athletes_from_list($text, $coachSlug = LEGION_PILOT_SLUG) {
+    $coachSlug = legion_coach_normalize_slug($coachSlug);
+    $names = legion_pilot_parse_athlete_name_list($text);
+    if (empty($names)) {
+        throw new InvalidArgumentException('Не найдено ни одного ФИО. Вставьте список — по одному имени на строку.');
+    }
+
+    $data = legion_pilot_load_dataset($coachSlug);
+    $added = array();
+    $skipped = array();
+    $needsPatronymic = array();
+    $needsPatronymicSeen = array();
+
+    foreach ($names as $name) {
+        if (legion_pilot_find_athlete_index($data['athletes'], $name) >= 0) {
+            if (legion_pilot_name_is_base_only($name)) {
+                $base = legion_pilot_name_base($name);
+                if (!isset($needsPatronymicSeen[$base])) {
+                    $needsPatronymicSeen[$base] = true;
+                    $needsPatronymic[] = $base;
+                }
+            } else {
+                $skipped[] = $name;
+            }
+            continue;
+        }
+
+        $base = legion_pilot_name_base($name);
+        if (legion_pilot_name_is_base_only($name) && legion_pilot_group_has_base_name($data['athletes'], $base)) {
+            if (!isset($needsPatronymicSeen[$base])) {
+                $needsPatronymicSeen[$base] = true;
+                $needsPatronymic[] = $base;
+            }
+            continue;
+        }
+
+        $row = array(
+            'name' => $name,
+            'photo' => '',
+            'rankMarks' => legion_pilot_default_marks(0, 0, 0),
+        );
+        foreach (legion_pilot_exercise_keys() as $key) {
+            $row[$key] = 0;
+        }
+        $data['athletes'][] = $row;
+        $added[] = $name;
+    }
+
+    if (!empty($added)) {
+        $data = legion_pilot_save_dataset($data);
+    }
+
+    return array(
+        'added' => $added,
+        'skipped' => $skipped,
+        'needsPatronymic' => $needsPatronymic,
+        'total' => count($names),
+        'updatedAt' => isset($data['updatedAt']) ? $data['updatedAt'] : legion_pilot_now_ru(),
+    );
 }
 
 function legion_pilot_remove_athlete($name, $coachSlug = LEGION_PILOT_SLUG) {
@@ -949,9 +1190,15 @@ function legion_pilot_update_rank_mark($name, $markIndex, $value, $coachSlug = L
     }
 
     $marks = legion_pilot_athlete_marks($data['athletes'][$idx]);
+    $oldVal = (int) $marks[$markIndex];
     $marks[$markIndex] = $value;
     legion_pilot_apply_league_rollback($marks, $markIndex, $value);
+    $newVal = (int) $marks[$markIndex];
     $data['athletes'][$idx]['rankMarks'] = $marks;
+
+    require_once __DIR__ . '/history_lib.php';
+    legion_log_rank_mark_change($name, $markIndex, $oldVal, $newVal);
+
     $data = legion_pilot_recompute_achievements($data);
     $saved = legion_pilot_save_dataset($data);
     $saved['lastRankMarks'] = $marks;

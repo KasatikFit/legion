@@ -44,6 +44,10 @@ h1, h2, h3 {
     letter-spacing: 0.02em;
 }
 
+h3, h4, h5, h6 {
+    text-transform: none;
+}
+
 h2 {
     color: var(--text);
     margin: 28px 0 12px;
@@ -134,8 +138,7 @@ h2 {
 .stat-label {
     font-size: 0.75rem;
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.02em;
     margin-top: 4px;
 }
 
@@ -146,7 +149,181 @@ h2 {
     margin-top: 2px;
 }
 
-/* Navbar */
+/* Site navigation */
+.legion-site-nav {
+    margin: 0 0 16px;
+}
+
+.legion-site-nav--split {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+}
+
+.legion-site-nav__primary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.legion-site-nav__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    background: var(--bg-elevated);
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    min-height: 42px;
+}
+
+.legion-site-nav__link:hover {
+    background: var(--surface-hover);
+}
+
+.legion-site-nav__link.is-active {
+    border-color: var(--red);
+    color: var(--red-bright);
+    font-weight: 600;
+    background: rgba(200, 16, 46, 0.08);
+}
+
+.legion-site-nav__link.is-disabled {
+    opacity: 0.62;
+    cursor: not-allowed;
+    pointer-events: none;
+    background: var(--bg);
+    color: var(--text-muted);
+}
+
+.legion-site-nav__soon {
+    margin-left: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.legion-site-nav__coaches-label {
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+}
+
+.legion-site-nav__coaches-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 8px;
+}
+
+.legion-site-nav__coach-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 78px;
+    padding: 10px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elevated);
+    color: var(--text);
+    text-decoration: none;
+    text-align: center;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.legion-site-nav__coach-tile:hover {
+    background: var(--surface-hover);
+    border-color: rgba(200, 16, 46, 0.35);
+}
+
+.legion-site-nav__coach-tile.is-active {
+    border-color: var(--red);
+    background: rgba(200, 16, 46, 0.08);
+    color: var(--red-bright);
+    box-shadow: inset 0 0 0 1px rgba(200, 16, 46, 0.15);
+}
+
+.legion-site-nav__coach-tile--training {
+    border-style: dashed;
+}
+
+.legion-site-nav__coach-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.legion-site-nav__coach-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.25;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+.legion-site-nav__btn {
+    margin: 0;
+    cursor: pointer;
+    font-family: var(--font-body);
+}
+
+.legion-site-nav__btn:hover {
+    color: var(--red-bright);
+}
+
+.legion-site-nav .legion-site-nav__btn#admin-logout-btn {
+    margin-left: auto;
+}
+
+.legion-site-nav:not(.legion-site-nav--split) .legion-site-nav__primary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+@media (max-width: 600px) {
+    .legion-site-nav--split {
+        padding: 10px;
+    }
+
+    .legion-site-nav__primary .legion-site-nav__link {
+        flex: 1 1 calc(50% - 4px);
+        font-size: 0.82rem;
+        padding: 9px 10px;
+    }
+
+    .legion-site-nav__coaches-grid {
+        grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    }
+
+    .legion-site-nav__coach-tile {
+        min-height: 72px;
+    }
+
+    .legion-site-nav__coach-name {
+        font-size: 0.76rem;
+    }
+}
+
+/* Legacy navbar (deprecated — use .legion-site-nav) */
 .navbar {
     background: linear-gradient(135deg, #ffffff 0%, #f8f9fb 100%);
     border: 1px solid var(--border);
@@ -453,10 +630,13 @@ h2 {
 }
 
 .tab {
-    padding: 8px 14px;
+    padding: 8px 12px;
+    min-width: 4.25rem;
+    text-align: center;
+    white-space: nowrap;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 999px;
     cursor: pointer;
     user-select: none;
     font-size: 0.85rem;
@@ -509,10 +689,31 @@ table.rating-table {
 
 .rating-table .col-points,
 .rating-table th.col-points,
-.rating-table td.col-points {
+.rating-table td.col-points,
+.rating-table td.col-result {
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
     text-align: center;
+    font-family: var(--font-display);
+    font-weight: 600;
+}
+
+.rating-table td.col-points,
+.rating-table td.col-points strong {
+    font-size: 1.2rem;
+    line-height: 1.15;
+    letter-spacing: 0.02em;
+}
+
+.rating-table td.col-result {
+    font-size: 1.05rem;
+}
+
+.rating-table td:first-child,
+.rating-table td:first-child strong {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
 }
 
 .rating-table-overall { min-width: 320px; }
@@ -522,8 +723,7 @@ table.rating-table {
     background: var(--bg-elevated);
     color: var(--text-muted);
     font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
     font-weight: 600;
 }
 
@@ -609,8 +809,7 @@ table:not(.rating-table) {
     display: block;
     margin-bottom: 4px;
     font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     color: var(--text-muted);
 }
 
@@ -723,8 +922,7 @@ table:not(.rating-table) {
 .rotation-password-label {
     font-size: 0.75rem;
     font-weight: 600;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     color: var(--text-muted);
 }
 
@@ -864,6 +1062,23 @@ table:not(.rating-table) {
 .elite-icon {
     font-weight: bold;
     filter: drop-shadow(0 1px 2px rgba(200, 16, 46, 0.2));
+}
+
+.top25-badge {
+    display: inline-block;
+    margin-left: 0.4em;
+    padding: 0.12em 0.45em;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+    vertical-align: middle;
+    color: #8b6914;
+    background: linear-gradient(180deg, #fff9e6 0%, #f5e6b8 100%);
+    border: 1px solid rgba(184, 134, 11, 0.55);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(184, 134, 11, 0.2);
+    white-space: nowrap;
 }
 
 /* Club elite (TOP-25) */
@@ -1050,7 +1265,6 @@ table:not(.rating-table) {
 .section-title {
     font-family: var(--font-display);
     font-size: 1.1rem;
-    text-transform: uppercase;
     margin: 0 0 12px;
     display: flex;
     align-items: center;
@@ -1067,10 +1281,21 @@ table:not(.rating-table) {
     font-weight: 500;
 }
 
+.ach-empty {
+    margin: 0 0 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
 .ach-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: 12px;
 }
 
 @media (max-width: 520px) {
@@ -1079,46 +1304,75 @@ table:not(.rating-table) {
 
 .ach-card {
     position: relative;
-    background: var(--bg-elevated);
+    background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 10px 12px;
+    border-radius: 14px;
+    padding: 12px 10px 10px;
     text-align: center;
-    min-height: 128px;
+    min-height: 148px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    overflow: hidden;
 }
 
+.ach-card--earned,
 .ach-card.active {
-    border-color: var(--border-strong);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
+.ach-card--earned:hover,
+.ach-card.active:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.ach-card--earned.ach-legendary,
 .ach-card.active.ach-legendary {
-    background: linear-gradient(160deg, rgba(255, 215, 0, 0.2), var(--bg-elevated));
-    border-color: var(--gold);
-    box-shadow: 0 2px 12px rgba(184, 134, 11, 0.2);
+    background: linear-gradient(165deg, rgba(255, 215, 0, 0.22), var(--surface) 55%);
+    border-color: #ca8a04;
+    box-shadow: 0 4px 18px rgba(202, 138, 4, 0.25);
 }
 
+.ach-card--earned.ach-epic,
 .ach-card.active.ach-epic {
-    background: linear-gradient(160deg, rgba(200, 16, 46, 0.1), var(--bg-elevated));
+    background: linear-gradient(165deg, rgba(227, 24, 55, 0.12), var(--surface) 55%);
     border-color: var(--red);
+    box-shadow: 0 4px 16px rgba(227, 24, 55, 0.15);
 }
 
+.ach-card--earned.ach-rare,
 .ach-card.active.ach-rare {
-    background: linear-gradient(160deg, rgba(37, 99, 235, 0.1), var(--bg-elevated));
-    border-color: var(--elite);
+    background: linear-gradient(165deg, rgba(37, 99, 235, 0.12), var(--surface) 55%);
+    border-color: #3b82f6;
 }
 
+.ach-card--earned.ach-common,
 .ach-card.active.ach-common {
     border-color: var(--border-strong);
 }
 
+.ach-card--locked,
 .ach-card.locked {
-    opacity: 0.42;
-    filter: grayscale(0.9);
+    opacity: 0.55;
+    filter: grayscale(0.85);
+    background: var(--bg-elevated);
+}
+
+.ach-card--locked .ach-card-medal,
+.ach-card.locked .ach-card-medal {
+    opacity: 0.7;
+}
+
+.ach-card-lock {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 0.75rem;
+    opacity: 0.55;
+    line-height: 1;
 }
 
 .ach-category {
@@ -1129,65 +1383,170 @@ table:not(.rating-table) {
     margin: 0 0 10px;
     font-family: var(--font-display);
     font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     color: var(--text-muted);
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+.ach-card-medal {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.25), transparent 55%), var(--bg-elevated);
+    border: 2px solid var(--border);
+    box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ach-card-medal--legendary { border-color: #ca8a04; background: radial-gradient(circle at 35% 30%, rgba(253, 224, 71, 0.35), transparent 60%), #1a1a14; }
+.ach-card-medal--epic { border-color: var(--red); background: radial-gradient(circle at 35% 30%, rgba(227, 24, 55, 0.2), transparent 60%), #1a1414; }
+.ach-card-medal--rare { border-color: #3b82f6; }
+
 .ach-card-desc {
     font-size: 0.62rem;
-    line-height: 1.3;
+    line-height: 1.35;
     color: var(--text-muted);
     margin-top: 4px;
     flex: 1;
 }
 
 .ach-card-icon {
-    font-size: 1.75rem;
     line-height: 1;
-    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ach-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
 }
 
 .ach-card-icon img,
 .ach-icon-img {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
-.ach-emoji { font-size: 1.75rem; }
+.ach-card--locked .ach-icon-img,
+.ach-card.locked .ach-icon-img {
+    filter: grayscale(1) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+.ach-emoji { font-size: 2rem; line-height: 1; }
 
 .ach-card-title {
-    font-size: 0.7rem;
-    font-weight: 600;
+    font-size: 0.72rem;
+    font-weight: 700;
     line-height: 1.25;
     color: var(--text);
-    flex: 1;
 }
 
 .ach-card-date {
-    font-size: 0.65rem;
+    font-size: 0.62rem;
     color: var(--text-muted);
     margin-top: 6px;
+    font-weight: 600;
 }
 
-.ach-card-lock {
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    font-size: 0.75rem;
-    opacity: 0.7;
+.ach-card-date--locked {
+    color: var(--border-strong);
+    font-weight: 500;
 }
 
 .ach-legend {
-    font-size: 0.8rem;
+    margin: 8px 0 0;
+    font-size: 0.78rem;
     color: var(--text-muted);
-    margin-top: 12px;
     text-align: center;
 }
+
+.ach-locked-teaser {
+    margin-top: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    overflow: hidden;
+}
+
+.ach-locked-teaser-summary {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.ach-locked-teaser-summary::-webkit-details-marker { display: none; }
+.ach-locked-teaser-summary::before { content: '▸ '; color: var(--text-muted); }
+.ach-locked-teaser[open] .ach-locked-teaser-summary::before { content: '▾ '; }
+
+.ach-locked-teaser-list {
+    padding: 0 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.ach-locked-teaser-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    opacity: 0.85;
+}
+
+.ach-locked-teaser-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: grayscale(0.9);
+    opacity: 0.65;
+}
+
+.ach-locked-teaser-icon .ach-icon-img { width: 28px; height: 28px; }
+.ach-locked-teaser-icon .ach-emoji { font-size: 1.25rem; }
+
+.ach-locked-teaser-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ach-locked-teaser-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.ach-locked-teaser-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+    opacity: 0.9;
+}
+
+.athlete-profile-section .ach-legend { margin-top: 4px; }
 
 /* History */
 .history-list {
@@ -1306,6 +1665,14 @@ table:not(.rating-table) {
 
 .modal h2 { margin: 0 0 8px; font-size: 1.4rem; }
 .modal-header { text-align: center; margin-bottom: 16px; }
+
+.modal-athlete-age {
+    margin: 10px 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+}
 
 .modal-rank-row {
     text-align: center;
@@ -1449,8 +1816,7 @@ table:not(.rating-table) {
 .rank-modal-hero-league {
     font-size: 0.85rem;
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     font-weight: 600;
 }
 
@@ -1534,8 +1900,7 @@ table:not(.rating-table) {
 .rank-ladder-label {
     font-size: 0.75rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
 }
 
 .rank-ladder-count {
@@ -1884,8 +2249,7 @@ table:not(.rating-table) {
     margin: 0 0 14px;
     font-family: var(--font-display);
     font-size: 1.2rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
 }
 
 .hall-feed-empty {
@@ -1903,10 +2267,30 @@ table:not(.rating-table) {
     color: var(--red-bright);
 }
 
+/* --- Микроанимации: появление строк рейтинга --- */
+
+@media (prefers-reduced-motion: no-preference) {
+    .legion-micro-row {
+        animation: legion-micro-row-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: var(--legion-micro-delay, 0ms);
+    }
+
+    @keyframes legion-micro-row-in {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}
+
 /* Print */
 @media print {
     body { background: #fff; color: #000; margin: 0; padding: 0; }
-    .navbar, .tabs, button, .note, .error, .rotation-log, .rotation-panel, .countdown,
+    .navbar, .legion-site-nav, .tabs, button, .note, .error, .rotation-log, .rotation-panel, .countdown,
     .modal-overlay, .site-header, .club-stats, .welcome, .search-bar { display: none !important; }
     .table-wrap { box-shadow: none; border: 1px solid #ccc; }
     .rating-table tbody tr { background: #fff !important; }
@@ -2027,6 +2411,15 @@ table:not(.rating-table) {
 
     .rating-table-elite tbody tr.row-club-elite-base td.col-points {
         background: #fff;
+    }
+
+    .rating-table td.col-points,
+    .rating-table td.col-points strong {
+        font-size: 1.05rem;
+    }
+
+    .rating-table td.col-result {
+        font-size: 0.95rem;
     }
 
     .rating-table th,
@@ -2239,6 +2632,133 @@ table:not(.rating-table) {
     transform: translateY(-1px);
 }
 
+/* Страница «О нас» */
+.about-hero-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: min(100%, 200px);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    background: linear-gradient(145deg, rgba(200, 16, 46, 0.08) 0%, rgba(200, 16, 46, 0.02) 100%);
+    border-radius: 50%;
+    border: 2px solid rgba(200, 16, 46, 0.15);
+}
+
+.about-hero-logo {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.12));
+}
+
+.about-section-title {
+    margin: 0 0 20px;
+    font-size: 1.35rem;
+    text-align: center;
+}
+
+.about-values {
+    margin-bottom: 40px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.about-values-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.about-value-card {
+    padding: 20px 18px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.about-value-icon {
+    display: block;
+    font-size: 1.75rem;
+    margin-bottom: 10px;
+}
+
+.about-value-card h3 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+}
+
+.about-value-card p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.55;
+    font-size: 0.95rem;
+}
+
+.about-illus-block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    background: linear-gradient(135deg, #f8f9fb 0%, #fff 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+.about-illus-emoji {
+    font-size: 4rem;
+    line-height: 1;
+}
+
+.about-inline-link {
+    color: var(--red);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.about-inline-link:hover {
+    text-decoration: underline;
+}
+
+.about-contact-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin: 20px 0 12px;
+}
+
+.about-contact-btn--ghost {
+    display: inline-block;
+    padding: 12px 28px;
+    border: 2px solid var(--red);
+    color: var(--red);
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: background 0.2s, color 0.2s;
+}
+
+.about-contact-btn--ghost:hover {
+    background: rgba(200, 16, 46, 0.06);
+}
+
+.about-contact-phone {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.about-contact-phone a {
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.about-contact-phone a:hover {
+    color: var(--red);
+}
+
 @media (max-width: 720px) {
     .guide-hero {
         flex-direction: column;
@@ -2258,6 +2778,10 @@ table:not(.rating-table) {
 
     .guide-exercise-list {
         columns: 1;
+    }
+
+    .about-values-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -2459,4 +2983,541 @@ table:not(.rating-table) {
     color: var(--text-muted);
     font-weight: 600;
     text-align: center;
+}
+
+/* —— Модальное окно: кнопка «Подробнее» —— */
+.modal-footer {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+.athlete-modal-more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 28px;
+    border-radius: var(--radius-md);
+    background: var(--red);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.athlete-modal-more-btn:hover {
+    background: var(--red-hover, #c62828);
+    color: #fff;
+    text-decoration: none;
+}
+
+.athlete-modal-more-btn:focus-visible {
+    outline: 2px solid var(--red);
+    outline-offset: 2px;
+}
+
+/* —— Страница карточки спортсмена —— */
+.athlete-profile-page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 8px 16px 56px;
+}
+
+.athlete-profile-back {
+    display: inline-block;
+    margin-bottom: 16px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+.athlete-profile-back:hover {
+    color: var(--red);
+}
+
+.athlete-profile-card {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 24px 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.athlete-profile-hero {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.athlete-profile-photo-frame {
+    margin: 0 auto 16px;
+    width: 140px;
+    height: 140px;
+}
+
+.athlete-profile-photo {
+    width: 120px;
+    height: 120px;
+}
+
+.athlete-profile-age {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+}
+
+.athlete-profile-name {
+    margin: 0 0 8px;
+    font-size: 1.6rem;
+}
+
+.athlete-profile-league {
+    margin: 0 0 8px;
+}
+
+.athlete-profile-coach {
+    margin: 0 0 8px;
+}
+
+.athlete-profile-coach-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+
+.athlete-profile-coach-link:hover {
+    color: var(--red);
+}
+
+.athlete-profile-ranks {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.athlete-profile-section {
+    margin-bottom: 28px;
+}
+
+.athlete-profile-section:last-child {
+    margin-bottom: 0;
+}
+
+.athlete-profile-rank-section .rank-summary-card {
+    width: 100%;
+}
+
+/* —— Блок рангов на карточке спортсмена —— */
+.athlete-profile-ranks-section .section-title {
+    margin-bottom: 12px;
+}
+
+.athlete-rank-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.athlete-rank-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+}
+
+.athlete-rank-head--bronze { border-left: 4px solid #cd7f32; }
+.athlete-rank-head--silver { border-left: 4px solid #94a3b8; }
+.athlete-rank-head--gold { border-left: 4px solid #eab308; }
+
+.athlete-rank-head-icon {
+    font-size: 2rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.athlete-rank-head-league {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.athlete-rank-head-rank {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-top: 2px;
+}
+
+.athlete-rank-head-meta {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.athlete-rank-leagues-done {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.athlete-rank-league-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.athlete-rank-league-badge--bronze {
+    border-color: rgba(205, 127, 50, 0.45);
+    color: #9a5b1f;
+}
+
+.athlete-rank-league-badge--silver {
+    border-color: rgba(148, 163, 184, 0.55);
+    color: #475569;
+}
+
+.athlete-rank-all-done {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(21, 128, 61, 0.08);
+    border: 1px solid rgba(21, 128, 61, 0.25);
+    color: #15803d;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.athlete-rank-todo-section {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.athlete-rank-todo-heading {
+    margin: 0;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+}
+
+.athlete-rank-list-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4rem;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    vertical-align: middle;
+}
+
+.athlete-rank-todo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.athlete-rank-todo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.athlete-rank-todo-item:last-child {
+    border-bottom: none;
+}
+
+.athlete-rank-todo-item--next {
+    background: linear-gradient(90deg, rgba(220, 38, 38, 0.07), transparent);
+    border-left: 3px solid var(--red);
+    padding-left: 11px;
+}
+
+.athlete-rank-todo-num {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.athlete-rank-todo-item--next .athlete-rank-todo-num {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+}
+
+.athlete-rank-todo-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+
+.athlete-rank-todo-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.athlete-rank-todo-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.athlete-rank-todo-badge {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(220, 38, 38, 0.12);
+    color: var(--red);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.athlete-rank-done-details {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-elevated);
+}
+
+.athlete-rank-done-summary {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.athlete-rank-done-summary::-webkit-details-marker {
+    display: none;
+}
+
+.athlete-rank-done-summary::before {
+    content: '▸ ';
+    color: var(--text-muted);
+}
+
+.athlete-rank-done-details[open] .athlete-rank-done-summary::before {
+    content: '▾ ';
+}
+
+.athlete-rank-done-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 14px 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.athlete-rank-done-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 0.85rem;
+}
+
+.athlete-rank-done-item:last-child {
+    border-bottom: none;
+}
+
+.athlete-rank-done-check {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: #15803d;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    margin-top: 1px;
+}
+
+.athlete-rank-done-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.athlete-rank-done-name {
+    font-weight: 600;
+    color: #15803d;
+}
+
+.athlete-rank-done-desc {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+    .athlete-profile-card {
+        padding: 18px 14px;
+    }
+
+    .athlete-profile-name {
+        font-size: 1.35rem;
+    }
+
+    .athlete-rank-todo-list {
+        max-height: 260px;
+    }
+}
+
+/* —— История на карточке спортсмена —— */
+.athlete-profile-log-section .section-title {
+    margin-bottom: 14px;
+}
+
+.athlete-log-block {
+    margin-bottom: 18px;
+}
+
+.athlete-log-block:last-child {
+    margin-bottom: 0;
+}
+
+.athlete-log-title {
+    margin: 0 0 10px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.athlete-log-empty,
+.athlete-log-hint {
+    margin: 0;
+    font-size: 0.88rem;
+}
+
+.athlete-history-list {
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.history-item--rank {
+    border-left: 3px solid var(--gold);
+}
+
+.history-item-rank-icon {
+    margin: 0 2px;
+}
+
+.athlete-rank-norms-log {
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-elevated);
+}
+
+.athlete-rank-norms-log-summary {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.athlete-rank-norms-log-summary::-webkit-details-marker {
+    display: none;
+}
+
+.athlete-rank-norms-log-summary::before {
+    content: '▸ ';
+    color: var(--text-muted);
+}
+
+.athlete-rank-norms-log[open] .athlete-rank-norms-log-summary::before {
+    content: '▾ ';
+}
+
+.athlete-rank-norms-log-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 12px 10px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.athlete-rank-norm-log-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 0.85rem;
+}
+
+.athlete-rank-norm-log-item:last-child {
+    border-bottom: none;
+}
+
+.athlete-rank-norm-log-league {
+    flex-shrink: 0;
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+.athlete-rank-norm-log-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.athlete-rank-norm-log-name {
+    font-weight: 600;
+    color: #15803d;
+}
+
+.athlete-rank-norm-log-desc {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.35;
 }

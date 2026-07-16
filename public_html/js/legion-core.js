@@ -15,7 +15,9 @@ const LegionCore = {
         coachBenchmarks: {},
         searchQuery: '',
         openAthleteName: null,
-        loadWarnings: []
+        loadWarnings: [],
+        pageDataStorage: 'sheets',
+        clubOverallRankMap: null
     },
 
     // ---------- CSV & рейтинг ----------
@@ -297,6 +299,77 @@ const LegionCore = {
             });
     },
 
+    athleteRankKey(athleteOrName, coachSlug) {
+        let name = '';
+        let slug = '';
+        if (athleteOrName && typeof athleteOrName === 'object') {
+            name = athleteOrName.name;
+            slug = athleteOrName.coachSlug || '';
+        } else {
+            name = athleteOrName;
+            slug = coachSlug || '';
+        }
+        return `${slug}:${this.normalizePersonName(name)}`;
+    },
+
+    buildClubOverallRankMap(athletes) {
+        const map = new Map();
+        this.sortByTotal(athletes.filter((a) => !a.isCoach)).forEach((a, idx) => {
+            map.set(this.athleteRankKey(a), idx + 1);
+        });
+        return map;
+    },
+
+    applyClubOverallRanks(athletes, rankMap) {
+        if (!Array.isArray(athletes) || !rankMap) return;
+        athletes.forEach((a) => {
+            if (a.isCoach) return;
+            const rank = rankMap.get(this.athleteRankKey(a));
+            if (rank) {
+                a.overallRank = rank;
+                a.pointsRank = rank;
+            }
+        });
+    },
+
+    getClubOverallRank(athlete) {
+        if (!athlete) return '?';
+        const key = this.athleteRankKey(athlete);
+        if (this.state.clubOverallRankMap && this.state.clubOverallRankMap.has(key)) {
+            return this.state.clubOverallRankMap.get(key);
+        }
+        return athlete.overallRank || '?';
+    },
+
+    async refreshClubOverallRanks() {
+        const saved = {
+            athletesData: this.state.athletesData,
+            rankData: this.state.rankData,
+            serverHistory: this.state.serverHistory,
+            serverAchievements: this.state.serverAchievements,
+            pageDataStorage: this.state.pageDataStorage,
+            loadWarnings: this.state.loadWarnings,
+            coachBenchmarks: this.state.coachBenchmarks
+        };
+        try {
+            const { athletes, rankData } = await this.loadPageData();
+            this.applyRankData(rankData, athletes);
+            this.calculateAllRatings(athletes);
+            const map = this.buildClubOverallRankMap(athletes);
+            this.state.clubOverallRankMap = map;
+            this.applyClubOverallRanks(saved.athletesData, map);
+            return map;
+        } finally {
+            this.state.athletesData = saved.athletesData;
+            this.state.rankData = saved.rankData;
+            this.state.serverHistory = saved.serverHistory;
+            this.state.serverAchievements = saved.serverAchievements;
+            this.state.pageDataStorage = saved.pageDataStorage;
+            this.state.loadWarnings = saved.loadWarnings;
+            this.state.coachBenchmarks = saved.coachBenchmarks;
+        }
+    },
+
     initExerciseSorted(athletes) {
         LegionConfig.getExerciseKeys().forEach(key => {
             this.state[key + 'Sorted'] = this.buildExerciseSorted(athletes, key);
@@ -349,24 +422,8 @@ const LegionCore = {
             const payload = await resp.json();
             return await this.buildPageDataFromPayload(payload, coachSlug);
         } catch (e) {
-            console.warn('get_page_data недоступен, загрузка через get_athletes + get_ranks:', e);
-            const [athletes, rankDataRaw] = await Promise.all([
-                this.loadAllAthletes(options),
-                this.loadRanks()
-            ]);
-            let rankData = rankDataRaw;
-            if (athletes.length > 0 && Object.keys(rankData).length === 0) {
-                rankData = await this.ensureRankCoverage(athletes, rankData);
-            }
-            if (athletes.length === 0) {
-                const details = this.state.loadWarnings
-                    .map(w => `${w.coach}: ${w.message}`)
-                    .join('; ');
-                throw new Error(details
-                    ? `Нет данных ни в одной таблице. ${details}`
-                    : 'Нет данных ни в одной таблице');
-            }
-            return { athletes, rankData };
+            console.warn('get_page_data недоступен:', e);
+            throw new Error(e.message || 'Не удалось загрузить рейтинг с сервера. Проверьте MySQL и /diagnostics/');
         }
     },
 
@@ -408,15 +465,28 @@ const LegionCore = {
                 .map(w => `${w.coach}: ${w.message}`)
                 .join('; ');
             throw new Error(details
-                ? `Нет данных ни в одной таблице. ${details}`
-                : 'Нет данных ни в одной таблице');
+                ? `Нет данных в базе. ${details}`
+                : 'Нет спортсменов в базе — тренеры должны импортировать группы в режиме тренировки');
         }
+
+        if (Array.isArray(payload.history)) {
+            this.state.serverHistory = this.trimHistoryPerAthlete(payload.history);
+        }
+        if (Array.isArray(payload.rankHistory)) {
+            this.state.serverRankHistory = this.trimHistoryPerAthlete(payload.rankHistory);
+        }
+        if (payload.achievements && typeof payload.achievements === 'object') {
+            this.state.serverAchievements = payload.achievements;
+        }
+        this.state.pageDataStorage = payload.storage === 'mysql' ? 'mysql' : 'sheets';
 
         if (Object.keys(rankData).length === 0) {
             this.state.loadWarnings.push({
                 coach: 'Ранги',
                 slug: '',
-                message: 'Ранги: не удалось загрузить — проверьте таблицы рангов и /diagnostics/'
+                message: this.state.pageDataStorage === 'mysql'
+                    ? 'Ранги: не удалось загрузить — проверьте данные в режиме тренировки'
+                    : 'Ранги: не удалось загрузить — проверьте таблицы рангов и /diagnostics/'
             });
         }
 
@@ -840,13 +910,15 @@ const LegionCore = {
                 const newNum = Number(newVal);
                 if (oldNum === newNum) return;
                 if (isNaN(oldNum) && isNaN(newNum)) return;
+                const diff = (isNaN(newNum) ? 0 : newNum) - (isNaN(oldNum) ? 0 : oldNum);
+                if (diff <= 0) return;
                 entries.push({
                     date: now,
                     name,
                     exercise: ex,
                     oldVal: isNaN(oldNum) ? oldVal : oldNum,
                     newVal: isNaN(newNum) ? newVal : newNum,
-                    diff: (isNaN(newNum) ? 0 : newNum) - (isNaN(oldNum) ? 0 : oldNum)
+                    diff
                 });
             });
         });
@@ -1005,7 +1077,7 @@ const LegionCore = {
     },
 
     /**
-     * @deprecated История пишется через /api/cron_snapshot.php (ежедневный снимок).
+     * @deprecated История на MySQL пишется при сохранении в режиме тренировки.
      */
     async processResultHistoryChanges(athletesData, scope) {
         const compareScope = scope || LegionConfig.CLUB_LAST_RESULTS_SCOPE || 'global';
@@ -1157,39 +1229,53 @@ const LegionCore = {
         if (!filename) {
             return `<span class="ach-emoji">${emojiFallback}</span>`;
         }
-        const svgName = filename.replace(/\.png$/i, '.svg');
-        return `<img src="/icons/${svgName}" alt="" onerror="this.outerHTML='${emojiFallback}'" class="ach-icon-img">`;
+        const svgName = String(filename).replace(/\.png$/i, '.svg');
+        const safeEmoji = String(emojiFallback || '🏅');
+        return `<span class="ach-icon-wrap"><img src="/icons/${svgName}" alt="" class="ach-icon-img" loading="lazy" onerror="this.parentElement.outerHTML='<span class=\\'ach-emoji\\'>${safeEmoji}</span>'"></span>`;
     },
 
     makeAchievementEmoji(emoji) {
         return `<span class="ach-emoji">${emoji}</span>`;
     },
 
+    stripAchievementTitle(text) {
+        return String(text || '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/^[\s🏆🥇🌟💪🥉🥈⚔️👑📈]+/u, '')
+            .trim();
+    },
+
     getAchievementDefinitions() {
-        const mk = (f, e) => this.makeAchievementIcon(f, e);
-        const em = (e) => this.makeAchievementEmoji(e);
+        const def = (title, icon, emoji, desc, category) => ({
+            title,
+            icon,
+            emoji,
+            desc,
+            category: category || 'rating',
+            text: `${this.makeAchievementIcon(icon, emoji)} ${title}`
+        });
         return {
-            top1: { text: `${mk('top1.png', '🏆')} ТОП-1 Легиона Силы`, desc: 'Занять 1-е место в общем рейтинге клуба', category: 'rating' },
-            top3: { text: `${mk('top3.png', '🥇')} ТОП-3 Легиона Силы`, desc: 'Войти в тройку лидеров общего рейтинга', category: 'rating' },
-            top25: { text: `${mk('top25.png', '🌟')} ТОП-25 Легиона Силы`, desc: 'Попасть в число 25 лучших спортсменов', category: 'rating' },
-            ex_top10_push: { text: `${mk('top10-push.png', '💪')} ТОП-10 в Отжиманиях`, desc: 'Войти в десятку лучших по отжиманиям', category: 'rating' },
-            ex_top10_pull: { text: `${mk('top10-pull.png', '💪')} ТОП-10 в Подтягиваниях`, desc: 'Войти в десятку лучших по подтягиваниям', category: 'rating' },
-            ex_top10_hang: { text: `${mk('top10-hang.png', '💪')} ТОП-10 в Висе`, desc: 'Войти в десятку лучших по вису на турнике', category: 'rating' },
-            ex_top10_burpee: { text: `${mk('top10-burpee.png', '💪')} ТОП-10 в Бёрпи`, desc: 'Войти в десятку лучших по бёрпи', category: 'rating' },
-            ex_top10_crunch: { text: `${mk('top10-burpee.png', '💪')} ТОП-10 в Скручиваниях`, desc: 'Войти в десятку лучших по скручиваниям', category: 'rating' },
-            ex_top10_jump: { text: `${mk('top10-jump.png', '💪')} ТОП-10 в Прыжках`, desc: 'Войти в десятку лучших по прыжкам в длину', category: 'rating' },
-            ex_top1_push: { text: `${mk('top1-push.png', '🥇')} ТОП-1 в Отжиманиях`, desc: 'Стать абсолютным лидером по отжиманиям', category: 'rating' },
-            ex_top1_pull: { text: `${mk('top1-pull.png', '🥇')} ТОП-1 в Подтягиваниях`, desc: 'Стать абсолютным лидером по подтягиваниям', category: 'rating' },
-            ex_top1_hang: { text: `${mk('top1-hang.png', '🥇')} ТОП-1 в Висе`, desc: 'Стать абсолютным лидером по вису', category: 'rating' },
-            ex_top1_burpee: { text: `${mk('top1-burpee.png', '🥇')} ТОП-1 в Бёрпи`, desc: 'Стать абсолютным лидером по бёрпи', category: 'rating' },
-            ex_top1_crunch: { text: `${mk('top1-burpee.png', '🥇')} ТОП-1 в Скручиваниях`, desc: 'Стать абсолютным лидером по скручиваниям', category: 'rating' },
-            ex_top1_jump: { text: `${mk('top1-jump.png', '🥇')} ТОП-1 в Прыжках`, desc: 'Стать абсолютным лидером по прыжкам', category: 'rating' },
-            rank_bronze_done: { text: `${em('🥉')} Бронзовая лига`, desc: 'Закрыть все 20 нормативов бронзовой лиги', category: 'ranks' },
-            rank_silver_done: { text: `${em('🥈')} Серебряная лига`, desc: 'Закрыть все 20 нормативов серебряной лиги', category: 'ranks' },
-            rank_gold_done: { text: `${em('🥇')} Золотая лига`, desc: 'Закрыть все 20 нормативов золотой лиги', category: 'ranks' },
-            record_club: { text: `${mk('top1.png', '🏆')} Рекордсмен клуба`, desc: 'Установить рекорд клуба по упражнению', category: 'records' },
-            beat_coach_1: { text: `${em('⚔️')} Догнал тренера`, desc: 'Превзойти тренера хотя бы в одном упражнении', category: 'challenges' },
-            beat_coach_3: { text: `${em('👑')} Смена поколений`, desc: 'Превзойти тренера в трёх и более упражнениях', category: 'challenges' }
+            top1: def('ТОП-1 Легиона Силы', 'top1.svg', '🏆', 'Занять 1-е место в общем рейтинге клуба', 'rating'),
+            top3: def('ТОП-3 Легиона Силы', 'top3.svg', '🥇', 'Войти в тройку лидеров общего рейтинга', 'rating'),
+            top25: def('ТОП-25 Легиона Силы', 'top25.svg', '🌟', 'Попасть в число 25 лучших спортсменов', 'rating'),
+            ex_top10_push: def('ТОП-10 в Отжиманиях', 'top10-push.svg', '💪', 'Войти в десятку лучших по отжиманиям', 'rating'),
+            ex_top10_pull: def('ТОП-10 в Подтягиваниях', 'top10-pull.svg', '💪', 'Войти в десятку лучших по подтягиваниям', 'rating'),
+            ex_top10_hang: def('ТОП-10 в Висе', 'top10-hang.svg', '💪', 'Войти в десятку лучших по вису на турнике', 'rating'),
+            ex_top10_burpee: def('ТОП-10 в Бёрпи', 'top10-burpee.svg', '💪', 'Войти в десятку лучших по бёрпи', 'rating'),
+            ex_top10_crunch: def('ТОП-10 в Скручиваниях', 'top10-crunch.svg', '💪', 'Войти в десятку лучших по скручиваниям', 'rating'),
+            ex_top10_jump: def('ТОП-10 в Прыжках', 'top10-jump.svg', '💪', 'Войти в десятку лучших по прыжкам в длину', 'rating'),
+            ex_top1_push: def('ТОП-1 в Отжиманиях', 'top1-push.svg', '🥇', 'Стать абсолютным лидером по отжиманиям', 'rating'),
+            ex_top1_pull: def('ТОП-1 в Подтягиваниях', 'top1-pull.svg', '🥇', 'Стать абсолютным лидером по подтягиваниям', 'rating'),
+            ex_top1_hang: def('ТОП-1 в Висе', 'top1-hang.svg', '🥇', 'Стать абсолютным лидером по вису', 'rating'),
+            ex_top1_burpee: def('ТОП-1 в Бёрпи', 'top1-burpee.svg', '🥇', 'Стать абсолютным лидером по бёрпи', 'rating'),
+            ex_top1_crunch: def('ТОП-1 в Скручиваниях', 'top1-crunch.svg', '🥇', 'Стать абсолютным лидером по скручиваниям', 'rating'),
+            ex_top1_jump: def('ТОП-1 в Прыжках', 'top1-jump.svg', '🥇', 'Стать абсолютным лидером по прыжкам', 'rating'),
+            rank_bronze_done: def('Бронзовая лига', 'rank-bronze.svg', '🥉', 'Закрыть все 20 нормативов бронзовой лиги', 'ranks'),
+            rank_silver_done: def('Серебряная лига', 'rank-silver.svg', '🥈', 'Закрыть все 20 нормативов серебряной лиги', 'ranks'),
+            rank_gold_done: def('Золотая лига', 'rank-gold.svg', '🥇', 'Закрыть все 20 нормативов золотой лиги', 'ranks'),
+            record_club: def('Рекордсмен клуба', 'record-club.svg', '🏆', 'Установить рекорд клуба по упражнению', 'records'),
+            beat_coach_1: def('Догнал тренера', 'beat-coach.svg', '⚔️', 'Превзойти тренера хотя бы в одном упражнении', 'challenges'),
+            beat_coach_3: def('Смена поколений', 'beat-coach-3.svg', '👑', 'Превзойти тренера в трёх и более упражнениях', 'challenges')
         };
     },
 
@@ -1331,6 +1417,9 @@ const LegionCore = {
             const storedAch = athleteAch.find((a) => a.id === id);
             return {
                 id,
+                title: def.title || this.stripAchievementTitle(def.text),
+                icon: def.icon || null,
+                emoji: def.emoji || '🏅',
                 text: def.text,
                 desc: def.desc,
                 category: def.category || 'rating',
@@ -1366,10 +1455,112 @@ const LegionCore = {
         return `<span class="athlete-name" role="button" tabindex="0" data-athlete-name="${attr}">${name}</span>`;
     },
 
+    athleteProfileUrl(name, coachSlug) {
+        const params = new URLSearchParams();
+        params.set('name', name);
+        if (coachSlug) params.set('coach', coachSlug);
+        return `/athlete/?${params.toString()}`;
+    },
+
+    getAthletePhotoSrc(photo, fallback) {
+        const fb = fallback || "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22%3E%3Ccircle cx=%2260%22 cy=%2260%22 r=%2250%22 fill=%22%23222%22/%3E%3Ctext x=%2260%22 y=%2270%22 text-anchor=%22middle%22 font-size=%2240%22 fill=%22%23888%22%3E👤%3C/text%3E%3C/svg%3E";
+        if (!photo) return fb;
+        if (photo.startsWith('http') || photo.startsWith('/') || photo.startsWith('data:')) return photo;
+        return fb;
+    },
+
+    setModalPhoto(athleteOrPhoto) {
+        const img = document.getElementById('modal-photo');
+        if (!img) return;
+        const photo = athleteOrPhoto && typeof athleteOrPhoto === 'object'
+            ? athleteOrPhoto.photo
+            : athleteOrPhoto;
+        img.onerror = () => {
+            img.onerror = null;
+            img.src = this.getAthletePhotoSrc('');
+        };
+        img.src = this.getAthletePhotoSrc(photo);
+    },
+
+    updateAthleteModalMoreLink(athlete) {
+        const link = document.getElementById('athlete-modal-more');
+        if (!link) return;
+        if (!athlete || athlete.isCoach) {
+            link.hidden = true;
+            link.removeAttribute('href');
+            return;
+        }
+        link.href = this.athleteProfileUrl(athlete.name, athlete.coachSlug);
+        link.hidden = false;
+    },
+
     formatEliteIcon(title) {
         const icon = LegionConfig.ELITE_ICON || '🛡️';
         const attr = title ? ` title="${title}"` : '';
         return `<span class="elite-icon"${attr}>${icon}</span> `;
+    },
+
+    isClubTop25(athleteOrName) {
+        let athlete = athleteOrName;
+        if (typeof athleteOrName === 'string') {
+            athlete = (this.state.athletesData || []).find((a) => a.name === athleteOrName);
+        }
+        if (!athlete || athlete.isCoach) return false;
+        const rank = this.getClubOverallRank(athlete);
+        return typeof rank === 'number' && rank <= 25;
+    },
+
+    formatTop25Icon(title) {
+        const label = title || 'ТОП-25 Легиона Силы';
+        return `<span class="top25-badge" title="${this.escapeHtmlAttr(label)}" aria-label="${this.escapeHtmlAttr(label)}">ТОП-25</span>`;
+    },
+
+    getAthleteAge(athlete) {
+        if (!athlete) return null;
+        if (typeof athlete.age === 'number' && athlete.age >= 0) {
+            return athlete.age;
+        }
+        const birthdate = athlete.birthdate;
+        if (!birthdate) return null;
+        const born = new Date(`${birthdate}T12:00:00`);
+        if (Number.isNaN(born.getTime())) return null;
+        const today = new Date();
+        let age = today.getFullYear() - born.getFullYear();
+        const monthDiff = today.getMonth() - born.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
+            age -= 1;
+        }
+        return age >= 0 ? age : null;
+    },
+
+    formatAgeYears(age) {
+        const n = Math.abs(Math.round(age));
+        const mod10 = n % 10;
+        const mod100 = n % 100;
+        let word = 'лет';
+        if (mod100 < 11 || mod100 > 14) {
+            if (mod10 === 1) word = 'год';
+            else if (mod10 >= 2 && mod10 <= 4) word = 'года';
+        }
+        return `${n} ${word}`;
+    },
+
+    formatAthleteAge(athlete) {
+        const age = this.getAthleteAge(athlete);
+        return age === null ? '' : this.formatAgeYears(age);
+    },
+
+    fillAthleteModalAge(athlete) {
+        const el = document.getElementById('modal-age');
+        if (!el) return;
+        const label = this.formatAthleteAge(athlete);
+        if (!label) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        el.textContent = label;
+        el.hidden = false;
     },
 
     getCellClass(rank) {
@@ -1410,6 +1601,126 @@ const LegionCore = {
         return { items, completed, total: exercises.length, isComplete: completed >= exercises.length };
     },
 
+    historyDayKey(dateStr) {
+        const m = String(dateStr || '').match(/(\d{1,2}\.\d{1,2}\.\d{4})/);
+        return m ? m[1] : '';
+    },
+
+    parseHistoryDateTime(dateStr) {
+        if (!dateStr) return 0;
+        const m = String(dateStr).match(/(\d{1,2})\.(\d{1,2})\.(\d{4})(?:,\s*(\d{1,2}):(\d{2}):(\d{2}))?/);
+        if (!m) return 0;
+        return new Date(
+            parseInt(m[3], 10),
+            parseInt(m[2], 10) - 1,
+            parseInt(m[1], 10),
+            m[4] ? parseInt(m[4], 10) : 0,
+            m[5] ? parseInt(m[5], 10) : 0,
+            m[6] ? parseInt(m[6], 10) : 0
+        ).getTime();
+    },
+
+    aggregateExerciseHistoryByDay(entries) {
+        const groups = new Map();
+        entries.forEach((entry) => {
+            const day = this.historyDayKey(entry.date);
+            const exercise = entry.exercise || '';
+            if (!day || !exercise) return;
+
+            const key = `${day}\0${exercise}`;
+            const ts = this.parseHistoryDateTime(entry.date);
+            const diff = Number(entry.diff) || 0;
+
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    name: entry.name,
+                    exercise,
+                    day,
+                    diff: 0,
+                    sortTs: ts,
+                    sortDate: entry.date,
+                    firstTs: ts,
+                    oldVal: entry.oldVal,
+                    newVal: entry.newVal
+                });
+            }
+
+            const group = groups.get(key);
+            group.diff += diff;
+            if (ts < group.firstTs) {
+                group.firstTs = ts;
+                group.oldVal = entry.oldVal;
+            }
+            if (ts >= group.sortTs) {
+                group.sortTs = ts;
+                group.sortDate = entry.date;
+                group.newVal = entry.newVal;
+            }
+        });
+
+        return [...groups.values()]
+            .filter((group) => group.diff > 0)
+            .map((group) => ({
+                name: group.name,
+                exercise: group.exercise,
+                date: group.sortDate,
+                diff: group.diff,
+                oldVal: group.oldVal,
+                newVal: group.newVal
+            }));
+    },
+
+    getAthleteProgressHistory(name) {
+        const normName = this.normalizePersonName(name);
+        const limit = LegionConfig.HISTORY_PER_ATHLETE || 50;
+        const rankProgressEvents = {
+            mark_pass: true,
+            league_bronze: true,
+            league_silver: true,
+            league_gold: true
+        };
+        const rawExerciseHistory = this.getHistory()
+            .filter((e) => this.normalizePersonName(e.name) === normName && Number(e.diff) > 0);
+        const exerciseEntries = this.aggregateExerciseHistoryByDay(rawExerciseHistory)
+            .map((e) => ({ kind: 'exercise', entry: e }));
+        const rankEntries = this.getRankHistory()
+            .filter((e) => this.normalizePersonName(e.name) === normName && rankProgressEvents[e.event])
+            .map((e) => ({ kind: 'rank', entry: e }));
+        return [...exerciseEntries, ...rankEntries]
+            .sort((a, b) => this.parseHistoryDateTime(b.entry.date) - this.parseHistoryDateTime(a.entry.date))
+            .slice(0, limit);
+    },
+
+    formatProgressHistoryItem(item) {
+        if (!item || !item.entry) return '';
+        if (item.kind === 'rank') {
+            return this.formatRankHistoryEvent(item.entry);
+        }
+        return this.formatHistoryChangeText(item.entry);
+    },
+
+    renderAthleteProgressContent(name) {
+        const items = this.getAthleteProgressHistory(name);
+        if (!items.length) {
+            return '<p class="note athlete-log-empty">Пока нет записей о прогрессе — они появятся после улучшения результата или сдачи норматива на ранг.</p>';
+        }
+        let html = '<div class="history-list athlete-history-list">';
+        items.forEach((item) => {
+            const cls = item.kind === 'rank' ? 'history-item history-item--rank' : 'history-item';
+            html += `<div class="${cls}">${this.formatProgressHistoryItem(item)}</div>`;
+        });
+        html += '</div>';
+        return html;
+    },
+
+    renderAthleteProgressBlock(name) {
+        return `<div class="modal-progress-block"><h3 class="section-title">Прогресс</h3>${this.renderAthleteProgressContent(name)}</div>`;
+    },
+
+    renderAthleteHistorySections(name) {
+        return this.renderAthleteProgressContent(name);
+    },
+
     renderHistoryList(name, options) {
         const opts = options || {};
         const limit = LegionConfig.HISTORY_PER_ATHLETE || 50;
@@ -1436,14 +1747,32 @@ const LegionCore = {
         return `<h3>История изменений <span class="history-count">(${count})</span></h3>${list}`;
     },
 
-    renderAthleteProgressBlock(name) {
-        let html = '<div class="modal-progress-block"><h3 class="section-title">Прогресс</h3>';
-        const historyList = this.renderHistoryList(name, { includeHeading: false });
-        html += historyList
-            ? historyList
-            : '<p class="note">Пока нет записей о прогрессе.</p>';
-        html += '</div>';
-        return html;
+    formatRankHistoryEvent(entry) {
+        const date = this.formatHistoryEntryDate(entry.date);
+        if (entry.event === 'mark_pass' || entry.event === 'mark_revoke') {
+            let title = 'норматив';
+            const idx = typeof entry.markIndex === 'number' ? entry.markIndex : parseInt(entry.markIndex, 10);
+            if (!isNaN(idx)) {
+                [3, 2, 1].some((league) => {
+                    const { offset, exercises } = this.getLeagueExerciseList(league);
+                    if (idx >= offset && idx < offset + exercises.length) {
+                        title = exercises[idx - offset];
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            const verb = entry.event === 'mark_pass' ? 'Сдал' : 'Снял';
+            const icon = entry.event === 'mark_pass' ? '✓' : '✗';
+            return `<span class="history-item-date">${date}</span> <span class="history-item-rank-icon" aria-hidden="true">${icon}</span> ${verb}: ${this.escapeHtml(title)}`;
+        }
+        const map = {
+            league_bronze: { icon: '🥉', text: 'Закрыл бронзовую лигу — все 20 нормативов' },
+            league_silver: { icon: '🥈', text: 'Закрыл серебряную лигу — все 20 нормативов' },
+            league_gold: { icon: '🥇', text: 'Закрыл золотую лигу — все 20 нормативов' }
+        };
+        const meta = map[entry.event] || { icon: '🏅', text: entry.event || 'Событие ранга' };
+        return `<span class="history-item-date">${date}</span> <span class="history-item-rank-icon" aria-hidden="true">${meta.icon}</span> ${meta.text}`;
     },
 
     parseHistoryDate(dateStr) {
@@ -1777,7 +2106,7 @@ const LegionCore = {
         }
         const achEl = document.getElementById('modal-achievements');
         if (achEl && opts.showAchievements !== false) {
-            achEl.innerHTML = LegionUI.renderAchievementGrid(this.getAchievementDisplayData(name));
+            achEl.innerHTML = LegionUI.renderAchievementGrid(this.getAchievementDisplayData(name), { variant: 'modal' });
         } else if (achEl) {
             achEl.innerHTML = '';
         }
@@ -1912,6 +2241,19 @@ const LegionCore = {
         this.initDropdownNav();
         this.initSearchBar(onSearchChange);
         this.initModalClicks();
+        const tabsEl = document.getElementById('legion-exercise-tabs');
+        if (tabsEl && typeof LegionUI !== 'undefined') {
+            if (tabsEl.getAttribute('data-tabs-rendered') === 'php' || tabsEl.querySelector('.tab')) {
+                if (LegionUI.bindExerciseTabs) {
+                    LegionUI.bindExerciseTabs(tabsEl);
+                }
+            } else if (LegionUI.renderExerciseTabs) {
+                LegionUI.renderExerciseTabs(tabsEl, {
+                    includeHall: tabsEl.getAttribute('data-include-hall') !== '0',
+                    activeTab: this.state.currentTab || 'overall'
+                });
+            }
+        }
     },
 
     bindCommonGlobals() {

@@ -7,8 +7,7 @@ require_once __DIR__ . '/results_lib.php';
 require_once __DIR__ . '/ranks_lib.php';
 
 require_once __DIR__ . '/sheets_cache_lib.php';
-
-
+require_once __DIR__ . '/coaches.php';
 
 define('LEGION_PAGE_DATA_CACHE_TTL', 120);
 
@@ -114,6 +113,14 @@ function legion_page_data_cache_write($coachSlugFilter, array $payload) {
 
 }
 
+function legion_page_data_cache_clear($coachSlug = null) {
+    legion_sheets_cache_ensure_dir();
+    @unlink(legion_page_data_cache_file(null));
+    if ($coachSlug !== null && $coachSlug !== '') {
+        @unlink(legion_page_data_cache_file($coachSlug));
+    }
+}
+
 
 
 /**
@@ -213,10 +220,168 @@ function legion_build_page_data($coachSlugFilter = null) {
         'ranksFromServer' => true,
 
     );
-
 }
 
+/** Все группы тренеров в MySQL — общий рейтинг с сервера. */
+function legion_club_uses_server_storage() {
+    $coaches = legion_coaches_config();
+    if (empty($coaches)) {
+        return false;
+    }
+    foreach ($coaches as $slug => $coach) {
+        if (!legion_coach_uses_mysql($slug)) {
+            return false;
+        }
+    }
+    return true;
+}
 
+/**
+ * Общий рейтинг клуба: все спортсмены и ранги из MySQL (данные тренеров).
+ *
+ * @return array{athletes:array,coachBenchmarks:array,warnings:array,ranks:array,history:array,achievements:array,loaded:int,coaches:array,storage:string}
+ */
+function legion_build_club_page_data_from_mysql() {
+    require_once __DIR__ . '/pilot_lib.php';
+    require_once __DIR__ . '/club_storage_lib.php';
+
+    $athletes = array();
+    $coachBenchmarks = array();
+    $warnings = array();
+    $ranks = array();
+    $history = array();
+    $achievements = array();
+    $coachStats = array();
+    $loaded = 0;
+
+    foreach (legion_coaches_config() as $slug => $coach) {
+        if (!legion_coach_uses_mysql($slug)) {
+            $warnings[] = array(
+                'coach' => $coach['name'],
+                'slug' => $slug,
+                'message' => 'Группа не переведена на MySQL',
+            );
+            continue;
+        }
+
+        try {
+            $dataset = legion_pilot_dataset_for_api($slug, array(
+                'includeHistory' => false,
+                'recomputeAchievements' => false,
+            ));
+        } catch (Exception $e) {
+            $warnings[] = array(
+                'coach' => $coach['name'],
+                'slug' => $slug,
+                'message' => $e->getMessage(),
+            );
+            continue;
+        }
+
+        foreach ($dataset['athletes'] as $row) {
+            if (is_array($row) && !empty($row['name'])) {
+                $athletes[] = $row;
+            }
+        }
+
+        if (!empty($dataset['coachBenchmark']) && is_array($dataset['coachBenchmark'])) {
+            $coachBenchmarks[$slug] = $dataset['coachBenchmark'];
+        }
+
+        if (!empty($dataset['ranks']) && is_array($dataset['ranks'])) {
+            foreach ($dataset['ranks'] as $key => $marks) {
+                $ranks[$key] = $marks;
+            }
+        }
+
+        if (!empty($dataset['achievements']) && is_array($dataset['achievements'])) {
+            foreach ($dataset['achievements'] as $name => $list) {
+                $achievements[$name] = $list;
+            }
+        }
+
+        if (empty($dataset['athletes'])) {
+            $warnings[] = array(
+                'coach' => $coach['name'],
+                'slug' => $slug,
+                'message' => 'Нет спортсменов в базе — импортируйте в режиме тренировки',
+            );
+        }
+
+        $loaded++;
+        $coachStats[] = array(
+            'slug' => $slug,
+            'name' => $coach['name'],
+            'ok' => true,
+            'athletes' => count($dataset['athletes']),
+        );
+    }
+
+    $achievements = legion_club_merge_achievement_maps(
+        $achievements,
+        legion_club_load_scope_achievements('global')
+    );
+
+    if (legion_club_storage_enabled()) {
+        $history = legion_club_load_all_history();
+    }
+
+    return array(
+        'athletes' => $athletes,
+        'coachBenchmarks' => $coachBenchmarks,
+        'warnings' => $warnings,
+        'ranks' => $ranks,
+        'history' => $history,
+        'achievements' => $achievements,
+        'loaded' => $loaded,
+        'coaches' => $coachStats,
+        'ranksFromServer' => true,
+        'storage' => 'mysql',
+    );
+}
+
+/**
+ * Рейтинг одной группы из MySQL (fallback для get_page_data?coach=).
+ */
+function legion_build_coach_page_data_from_mysql($coachSlug) {
+    require_once __DIR__ . '/pilot_lib.php';
+    require_once __DIR__ . '/club_storage_lib.php';
+    $coachSlug = legion_coach_normalize_slug($coachSlug);
+    $dataset = legion_pilot_dataset_for_api($coachSlug);
+    $meta = $dataset['coach'];
+
+    $warnings = array();
+    if (empty($dataset['athletes'])) {
+        $warnings[] = array(
+            'coach' => $meta['name'],
+            'slug' => $coachSlug,
+            'message' => 'Нет спортсменов в базе — импортируйте в режиме тренировки',
+        );
+    }
+
+    $coachBenchmarks = array();
+    if (!empty($dataset['coachBenchmark']) && is_array($dataset['coachBenchmark'])) {
+        $coachBenchmarks[$coachSlug] = $dataset['coachBenchmark'];
+    }
+
+    return array(
+        'athletes' => $dataset['athletes'],
+        'coachBenchmarks' => $coachBenchmarks,
+        'warnings' => $warnings,
+        'ranks' => isset($dataset['ranks']) ? $dataset['ranks'] : array(),
+        'history' => isset($dataset['history']) ? $dataset['history'] : array(),
+        'achievements' => isset($dataset['achievements']) ? $dataset['achievements'] : array(),
+        'loaded' => 1,
+        'coaches' => array(array(
+            'slug' => $coachSlug,
+            'name' => $meta['name'],
+            'ok' => true,
+            'athletes' => count($dataset['athletes']),
+        )),
+        'ranksFromServer' => true,
+        'storage' => 'mysql',
+    );
+}
 
 function legion_load_page_data($coachSlugFilter = null) {
 
@@ -228,9 +393,51 @@ function legion_load_page_data($coachSlugFilter = null) {
 
     }
 
-
-
-    $payload = legion_build_page_data($coachSlugFilter);
+    if ($coachSlugFilter === null) {
+        if (!legion_club_uses_server_storage()) {
+            $payload = array(
+                'athletes' => array(),
+                'coachBenchmarks' => array(),
+                'warnings' => array(array(
+                    'coach' => 'Клуб',
+                    'slug' => '',
+                    'message' => 'Не все группы переведены на MySQL. Проверьте /diagnostics/',
+                )),
+                'ranks' => array(),
+                'history' => array(),
+                'achievements' => array(),
+                'rankHistory' => array(),
+                'loaded' => 0,
+                'coaches' => array(),
+                'ranksFromServer' => true,
+                'storage' => 'mysql',
+            );
+        } else {
+            $payload = legion_build_club_page_data_from_mysql();
+        }
+    } elseif (legion_coach_uses_mysql($coachSlugFilter)) {
+        $payload = legion_build_coach_page_data_from_mysql($coachSlugFilter);
+    } else {
+        $coaches = legion_coaches_config();
+        $name = isset($coaches[$coachSlugFilter]['name']) ? $coaches[$coachSlugFilter]['name'] : $coachSlugFilter;
+        $payload = array(
+            'athletes' => array(),
+            'coachBenchmarks' => array(),
+            'warnings' => array(array(
+                'coach' => $name,
+                'slug' => $coachSlugFilter,
+                'message' => 'Группа не переведена на MySQL',
+            )),
+            'ranks' => array(),
+            'history' => array(),
+            'achievements' => array(),
+            'rankHistory' => array(),
+            'loaded' => 0,
+            'coaches' => array(),
+            'ranksFromServer' => true,
+            'storage' => 'mysql',
+        );
+    }
 
     legion_page_data_cache_write($coachSlugFilter, $payload);
 
@@ -242,7 +449,7 @@ function legion_load_page_data($coachSlugFilter = null) {
 
 /**
 
- * Прогрев кэша таблиц и готового ответа (cron).
+ * Прогрев кэша таблиц и готового ответа (по запросу).
 
  */
 

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS pilot_athletes (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     photo VARCHAR(512) NOT NULL DEFAULT '',
+    birthdate DATE NULL,
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_pilot_athletes_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -54,5 +55,18 @@ CREATE TABLE IF NOT EXISTS pilot_achievements (
     granted_at DATE NOT NULL,
     PRIMARY KEY (athlete_id, achievement_id),
     CONSTRAINT fk_pilot_achievements_athlete FOREIGN KEY (athlete_id)
+        REFERENCES pilot_athletes (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pilot_rank_history (
+    id VARCHAR(32) NOT NULL PRIMARY KEY,
+    athlete_id INT UNSIGNED NOT NULL,
+    event VARCHAR(32) NOT NULL,
+    mark_index SMALLINT UNSIGNED NULL,
+    old_val TINYINT UNSIGNED NULL,
+    new_val TINYINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_pilot_rank_history_athlete (athlete_id, created_at),
+    CONSTRAINT fk_pilot_rank_history_athlete FOREIGN KEY (athlete_id)
         REFERENCES pilot_athletes (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

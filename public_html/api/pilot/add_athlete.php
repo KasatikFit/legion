@@ -13,13 +13,21 @@ legion_pilot_require_auth_json();
 
 $payload = json_decode(file_get_contents('php://input'), true);
 $name = is_array($payload) && isset($payload['name']) ? (string) $payload['name'] : '';
+$patronymicInitial = is_array($payload) && isset($payload['patronymicInitial']) ? (string) $payload['patronymicInitial'] : '';
 
 try {
-    $data = legion_pilot_add_athlete($name);
+    $data = legion_pilot_add_athlete($name, LEGION_PILOT_SLUG, $patronymicInitial);
     echo json_encode(array(
         'success' => true,
         'updatedAt' => $data['updatedAt'],
         'athletes' => legion_pilot_dataset_for_api()['athletes'],
+    ), JSON_UNESCAPED_UNICODE);
+} catch (LegionPilotNeedsPatronymicException $e) {
+    http_response_code(409);
+    echo json_encode(array(
+        'error' => $e->getMessage(),
+        'code' => 'needs_patronymic',
+        'baseName' => $e->baseName,
     ), JSON_UNESCAPED_UNICODE);
 } catch (InvalidArgumentException $e) {
     http_response_code(400);

@@ -22,10 +22,19 @@ try {
 legion_coach_require_auth_json($coach);
 
 $name = is_array($payload) && isset($payload['name']) ? (string) $payload['name'] : '';
+$patronymicInitial = is_array($payload) && isset($payload['patronymicInitial']) ? (string) $payload['patronymicInitial'] : '';
+$birthdate = is_array($payload) && array_key_exists('birthdate', $payload) ? $payload['birthdate'] : null;
 
 try {
-    $data = legion_pilot_add_athlete($name, $coach);
+    $data = legion_pilot_add_athlete($name, $coach, $patronymicInitial, $birthdate);
     echo json_encode(array('success' => true, 'updatedAt' => $data['updatedAt']), JSON_UNESCAPED_UNICODE);
+} catch (LegionPilotNeedsPatronymicException $e) {
+    http_response_code(409);
+    echo json_encode(array(
+        'error' => $e->getMessage(),
+        'code' => 'needs_patronymic',
+        'baseName' => $e->baseName,
+    ), JSON_UNESCAPED_UNICODE);
 } catch (InvalidArgumentException $e) {
     http_response_code(400);
     echo json_encode(array('error' => $e->getMessage()), JSON_UNESCAPED_UNICODE);

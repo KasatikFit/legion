@@ -1,0 +1,251 @@
+.admin-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 16px 48px;
+}
+
+/* admin-nav заменён на legion-site-nav */
+
+.admin-badge {
+    display: inline-block;
+    margin-bottom: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(200, 16, 46, 0.12);
+    color: var(--red-bright);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.admin-card {
+    margin-bottom: 20px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+}
+
+.admin-card h2 {
+    margin: 0 0 16px;
+    font-size: 1.15rem;
+}
+
+.admin-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.admin-form--grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.admin-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.88rem;
+}
+
+.admin-form input {
+    padding: 10px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.admin-hint {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.admin-form-actions {
+    display: flex;
+    align-items: flex-end;
+}
+
+.admin-btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elevated);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.92rem;
+}
+
+.admin-btn--primary {
+    border-color: var(--red);
+    background: var(--red);
+    color: #fff;
+}
+
+.admin-btn--small {
+    padding: 6px 10px;
+    font-size: 0.82rem;
+}
+
+.admin-note,
+.admin-status {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.admin-status--ok { color: #16a34a; }
+.admin-status--error { color: var(--red-bright); }
+
+.admin-error {
+    color: var(--red-bright);
+    font-size: 0.9rem;
+}
+
+.admin-table td,
+.admin-table th {
+    vertical-align: middle;
+}
+
+.admin-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.82rem;
+}
+
+.admin-links a {
+    color: var(--red-bright);
+}
+
+.admin-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.admin-tag--ok {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+.admin-tag--warn {
+    background: rgba(234, 179, 8, 0.15);
+    color: #a16207;
+}
+
+.admin-tag--muted {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+}
+
+.admin-row-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.admin-diag-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.admin-diag-header h2 {
+    margin: 0;
+}
+
+.admin-diag-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.admin-diag-pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.admin-diag-pill--ok {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+.admin-diag-pill--warn {
+    background: rgba(234, 179, 8, 0.15);
+    color: #a16207;
+}
+
+.admin-diag-pill--error {
+    background: rgba(200, 16, 46, 0.12);
+    color: var(--red-bright);
+}
+
+.admin-diag-meta {
+    margin: 0 0 8px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.admin-diag-hint {
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+}
+
+.admin-diag-hint--ok { color: #16a34a; }
+.admin-diag-hint--warn { color: #a16207; }
+.admin-diag-hint--error { color: var(--red-bright); }
+
+.admin-diag-block {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.admin-diag-block--warn {
+    border-color: rgba(234, 179, 8, 0.35);
+    background: rgba(234, 179, 8, 0.06);
+}
+
+.admin-diag-block-title {
+    margin: 0 0 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.admin-diag-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    font-size: 0.88rem;
+}
+
+.admin-diag-list li + li {
+    margin-top: 6px;
+}
+
+.admin-diag-list--issues li {
+    list-style: none;
+    margin-left: -1.2rem;
+}
+
+.admin-diag-footer {
+    margin: 12px 0 0;
+    font-size: 0.88rem;
+}
+
+.admin-diag-footer a {
+    color: var(--red-bright);
+}

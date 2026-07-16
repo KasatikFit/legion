@@ -1,33 +1,5 @@
 /* Пилотная группа: рейтинг и режим тренировки */
 
-.pilot-page .pilot-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 0 0 16px;
-}
-
-.pilot-page .pilot-nav a {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--border-strong);
-    color: var(--text);
-    text-decoration: none;
-    font-size: 0.9rem;
-}
-
-.pilot-page .pilot-nav a:hover {
-    background: var(--surface-hover);
-}
-
-.pilot-page .pilot-nav a.is-active {
-    border-color: var(--red);
-    color: var(--red-bright);
-}
-
 .pilot-badge {
     display: inline-block;
     margin: 0 0 12px;
@@ -38,7 +10,6 @@
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.02em;
-    text-transform: uppercase;
 }
 
 .pilot-updated {
@@ -85,12 +56,15 @@
 }
 
 .pilot-exercise-tab {
-    padding: 10px 14px;
-    border-radius: 10px;
+    padding: 8px 12px;
+    min-width: 4.25rem;
+    text-align: center;
+    white-space: nowrap;
+    border-radius: 999px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text);
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     cursor: pointer;
 }
 
@@ -123,8 +97,7 @@
 
 .pilot-training-table th {
     font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     color: var(--text-muted);
     background: var(--bg-elevated);
 }
@@ -142,6 +115,9 @@
     width: 64px;
     color: var(--text-muted);
     text-align: center;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
 }
 
 .pilot-training-table .col-input {
@@ -152,6 +128,9 @@
     width: 56px;
     text-align: center;
     font-weight: 600;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
 }
 
 .pilot-training-table .col-delta.is-up { color: #22c55e; }
@@ -165,9 +144,11 @@
     border: 1px solid var(--border-strong);
     background: var(--bg);
     color: var(--text);
-    font-size: 1.1rem;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
     font-weight: 600;
     text-align: center;
+    font-variant-numeric: tabular-nums;
 }
 
 .pilot-result-input:focus {
@@ -180,7 +161,11 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-top: 16px;
+    margin: 0 0 12px;
+}
+
+.pilot-add-row[hidden] {
+    display: none !important;
 }
 
 .pilot-add-row input[type="text"] {
@@ -341,9 +326,58 @@
     -webkit-overflow-scrolling: touch;
 }
 
+.pilot-ranks-split {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.pilot-ranks-names-pane {
+    flex: 0 0 auto;
+    border-right: 1px solid var(--border);
+    box-shadow: 4px 0 10px -4px rgba(0, 0, 0, 0.14);
+    z-index: 2;
+    background: var(--surface);
+}
+
+.pilot-ranks-scroll-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.pilot-ranks-names-table {
+    min-width: 0;
+    width: max-content;
+}
+
+.pilot-ranks-names-table .col-name {
+    min-width: 132px;
+    max-width: 168px;
+    width: 132px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pilot-ranks-data-table {
+    min-width: 720px;
+}
+
+.pilot-ranks-split--coach {
+    margin-top: 8px;
+}
+
 .pilot-ranks-table {
-    min-width: 900px;
+    min-width: 0;
     font-size: 0.82rem;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 .pilot-ranks-table th,
@@ -351,25 +385,32 @@
     padding: 8px 6px;
     vertical-align: middle;
     text-align: center;
+    border-bottom: 1px solid var(--border);
 }
 
-.pilot-ranks-table .sticky-col {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: var(--surface);
+.pilot-ranks-table tr:last-child td {
+    border-bottom: none;
+}
+
+.pilot-ranks-names-table .col-name,
+.pilot-ranks-names-table th.col-name {
     text-align: left;
-    min-width: 120px;
-    max-width: 160px;
     font-weight: 600;
     font-size: 0.78rem;
     line-height: 1.2;
-    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
+    background: var(--surface);
 }
 
-.pilot-ranks-table thead .sticky-col {
+.pilot-ranks-names-table thead th.col-name {
     background: var(--bg-elevated);
-    z-index: 3;
+}
+
+.pilot-ranks-names-table tbody tr:hover .col-name {
+    background: var(--surface-hover);
+}
+
+.pilot-ranks-names-table .row-coach-benchmark .col-name {
+    background: var(--surface-hover);
 }
 
 .pilot-ranks-table .col-rank-league-h,
@@ -555,14 +596,38 @@
     font-size: 0.88rem;
 }
 
+.pilot-import-block {
+    margin: 0;
+}
+
+.pilot-import-subtitle {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.pilot-import-divider {
+    margin: 20px 0;
+    border: none;
+    border-top: 1px solid var(--border);
+}
+
 .pilot-import-field input,
-.pilot-import-field select {
+.pilot-import-field select,
+.pilot-import-field textarea {
     padding: 10px 12px;
     border-radius: 10px;
     border: 1px solid var(--border-strong);
     background: var(--bg);
     color: var(--text);
     font-size: 0.92rem;
+}
+
+.pilot-import-field textarea {
+    resize: vertical;
+    min-height: 120px;
+    font-family: inherit;
+    line-height: 1.45;
 }
 
 .pilot-import-check {
@@ -944,8 +1009,10 @@
         height: 36px;
     }
 
-    .pilot-ranks-table .sticky-col {
-        min-width: 76px;
+    .pilot-ranks-names-table .col-name {
+        min-width: 100px;
+        width: 100px;
+        max-width: 120px;
     }
     .pilot-training-table th,
     .pilot-training-table td {
@@ -956,4 +1023,87 @@
         font-size: 1.2rem;
         padding: 12px 8px;
     }
+}
+
+/* --- Микроанимации (пилот): подсветка места и пульс рекордов --- */
+
+@media (prefers-reduced-motion: no-preference) {
+    .pilot-page tr.legion-micro-rank-up {
+        animation: legion-micro-rank-row 1.35s ease-out;
+    }
+
+    @keyframes legion-micro-rank-row {
+        0%, 100% {
+            background-color: transparent;
+        }
+        18%, 42% {
+            background-color: rgba(34, 197, 94, 0.12);
+            box-shadow: inset 3px 0 0 rgba(34, 197, 94, 0.75);
+        }
+    }
+
+    .pilot-page .legion-micro-rank-up td:first-child strong {
+        animation: legion-micro-rank-num 1.35s ease-out;
+    }
+
+    @keyframes legion-micro-rank-num {
+        0%, 100% {
+            color: inherit;
+            transform: scale(1);
+        }
+        22%, 38% {
+            color: #16a34a;
+            transform: scale(1.08);
+        }
+    }
+
+    .pilot-page .legion-micro-record-pulse {
+        animation: legion-micro-record-pulse 2.1s ease-in-out 2;
+    }
+
+    @keyframes legion-micro-record-pulse {
+        0%, 100% {
+            box-shadow: none;
+        }
+        50% {
+            box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.45), 0 0 14px rgba(212, 175, 55, 0.18);
+        }
+    }
+
+    .pilot-page .hall-feed-item.legion-micro-record-pulse {
+        border-radius: 8px;
+    }
+}
+
+/* --- Профиль: дата рождения / возраст --- */
+
+.pilot-profile-note {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.pilot-profile-table-wrap {
+    margin-top: 0;
+}
+
+.pilot-birthdate-input,
+.pilot-new-birthdate {
+    min-width: 10.5rem;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.pilot-age-cell {
+    color: var(--text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pilot-add-row .pilot-new-birthdate {
+    flex: 0 0 auto;
 }

@@ -216,6 +216,8 @@ const LegionPilotRating = {
 
         document.getElementById('modal-name').textContent = name;
 
+        LegionCore.fillAthleteModalAge(athlete);
+
         document.getElementById('modal-league').textContent = athlete.coach || this.coach.name || '';
 
         document.getElementById('modal-rank-coach').textContent = athlete.coachRank || '—';
@@ -322,7 +324,9 @@ const LegionPilotRating = {
 
             crunch: 'Скручивания',
 
-            jump: 'Прыжок (см)'
+            jump: 'Прыжок (см)',
+
+            hall: '🏆 Зал славы'
 
         };
 
@@ -343,6 +347,42 @@ const LegionPilotRating = {
         });
 
         html += '</div>';
+
+
+
+        if (tab === 'hall') {
+
+            const records = LegionCore.computeExerciseRecords(this.athletes, this.history);
+
+            const recentBreaks = LegionCore.computeRecentRecordBreaks(this.history);
+
+            html += LegionUI.renderHallOfFame(records, recentBreaks);
+
+            content.innerHTML = html;
+
+            LegionCore.updateSearchStatus(0, { hidden: true });
+
+            content.querySelectorAll('[data-pilot-tab]').forEach((el) => {
+
+                el.addEventListener('click', () => {
+
+                    this.currentTab = el.getAttribute('data-pilot-tab');
+
+                    this.render();
+
+                });
+
+            });
+
+            if (typeof LegionPilotMicro !== 'undefined') {
+
+                LegionPilotMicro.applyHallAnimations(content);
+
+            }
+
+            return;
+
+        }
 
 
 
@@ -434,9 +474,59 @@ const LegionPilotRating = {
 
         html += '<p class="note pilot-tap-hint">Нажмите на строку — карточка, история прогресса и достижения.</p>';
 
+        const athletesForSnap = tab === 'overall'
+
+            ? this.sorted
+
+            : [...this.athletes].filter((a) => a[tab] > 0).sort((a, b) => b[tab] - a[tab]);
+
+        const rankMap = typeof LegionPilotMicro !== 'undefined'
+
+            ? LegionPilotMicro.buildRankMap(athletesForSnap, tab)
+
+            : {};
+
+        let rankUps = (typeof LegionPilotMicro !== 'undefined')
+
+            ? LegionPilotMicro.getRankUps(this.coachSlug, tab, rankMap)
+
+            : [];
+
+        if (!rankUps.length && typeof LegionPilotMicro !== 'undefined') {
+
+            rankUps = LegionPilotMicro.getPreviewRankUps(
+
+                this.coachSlug,
+
+                tab,
+
+                rankMap,
+
+                this.history
+
+            );
+
+        }
+
         content.innerHTML = html;
 
         LegionCore.updateSearchStatus(matchCount);
+
+
+
+        if (typeof LegionUI !== 'undefined' && LegionUI.applyRatingRowEntrance) {
+
+            LegionUI.applyRatingRowEntrance(content, tab);
+
+        }
+
+        if (typeof LegionPilotMicro !== 'undefined') {
+
+            LegionPilotMicro.applyTableAnimations(content, { rankUps });
+
+            LegionPilotMicro.saveSnapshot(this.coachSlug, tab, rankMap);
+
+        }
 
 
 
