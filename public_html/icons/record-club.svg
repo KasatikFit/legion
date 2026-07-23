@@ -1,18 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label=" 5:>@4">
-  <defs>
-    <linearGradient id="cup" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#fde047"/>
-      <stop offset="100%" stop-color="#b8860b"/>
-    </linearGradient>
-    <linearGradient id="base" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#8b0000"/>
-      <stop offset="100%" stop-color="#e31837"/>
-    </linearGradient>
-  </defs>
-  <path d="M18 14 H46 V28 C46 38 40 44 32 44 C24 44 18 38 18 28 Z" fill="url(#cup)" stroke="#a16207" stroke-width="2"/>
-  <path d="M14 18 C10 18 8 22 8 26 C8 30 12 32 16 30" fill="none" stroke="url(#cup)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M50 18 C54 18 56 22 56 26 C56 30 52 32 48 30" fill="none" stroke="url(#cup)" stroke-width="3" stroke-linecap="round"/>
-  <rect x="24" y="44" width="16" height="5" rx="1" fill="url(#base)"/>
-  <rect x="20" y="49" width="24" height="6" rx="2" fill="#14141a" stroke="url(#base)" stroke-width="1.5"/>
-  <polygon points="32,20 34,26 40,26 35,30 37,36 32,32 27,36 29,30 24,26 30,26" fill="#fff" opacity="0.9"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="<O 2 70;5 A;02K"><defs><linearGradient id="cup" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff5cf"/><stop offset=".55" stop-color="#e6b440"/><stop offset="1" stop-color="#8a5512"/></linearGradient><linearGradient id="base" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8f1733"/><stop offset="1" stop-color="#df4368"/></linearGradient></defs><path d="M18 12h28v13c0 11-6 19-14 19S18 36 18 25Z" fill="url(#cup)" stroke="#9a6417" stroke-width="2"/><path d="M15 16c-4 0-7 3-7 7 0 4 3 7 7 7M49 16c4 0 7 3 7 7 0 4-3 7-7 7" fill="none" stroke="url(#cup)" stroke-width="3" stroke-linecap="round"/><path d="M26 44h12v5H26z" fill="url(#base)"/><rect x="20" y="49" width="24" height="7" rx="2" fill="#121821" stroke="url(#base)" stroke-width="1.5"/><polygon points="32,20 34,26 40,26 35,30 37,36 32,32 27,36 29,30 24,26 30,26" fill="#fff9db"/></svg>

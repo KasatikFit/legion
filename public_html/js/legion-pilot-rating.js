@@ -142,7 +142,7 @@ const LegionPilotRating = {
 
         if (progressEl) {
 
-            progressEl.innerHTML = LegionCore.renderAthleteProgressBlock(name);
+            progressEl.innerHTML = LegionCore.renderAthleteProgressBlock(name, this.coachSlug);
 
         }
 
@@ -152,7 +152,7 @@ const LegionPilotRating = {
 
         if (achEl && typeof LegionPilotAchievements !== 'undefined') {
 
-            achEl.innerHTML = LegionPilotAchievements.renderGrid(name, this.achievements);
+            achEl.innerHTML = LegionPilotAchievements.renderGrid(name, this.achievements, this.coachSlug);
 
         }
 
@@ -355,7 +355,6 @@ const LegionPilotRating = {
             const records = LegionCore.computeExerciseRecords(this.athletes, this.history);
 
             const recentBreaks = LegionCore.computeRecentRecordBreaks(this.history);
-
             html += LegionUI.renderHallOfFame(records, recentBreaks);
 
             content.innerHTML = html;

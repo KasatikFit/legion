@@ -3,5 +3,5 @@
  * Единая версия статики — меняйте только здесь перед деплоем.
  */
 function legion_asset_version() {
-    return 131;
+    return 159;
 }

@@ -4,7 +4,7 @@
  * Хранилище пилотной группы в БД (SQLite по умолчанию или MySQL через pilot_db_config.php).
  */
 
-define('LEGION_PILOT_DB_SCHEMA_VERSION', 5);
+define('LEGION_PILOT_DB_SCHEMA_VERSION', 6);
 define('LEGION_PILOT_RANK_HISTORY_PER_ATHLETE', 50);
 
 function legion_pilot_db_config() {
@@ -115,8 +115,10 @@ function legion_pilot_db_init_schema(PDO $pdo, $driver) {
                 name VARCHAR(255) NOT NULL,
                 photo VARCHAR(512) NOT NULL DEFAULT '',
                 birthdate DATE NULL,
+                archived_at DATETIME NULL DEFAULT NULL,
                 created_at DATETIME NOT NULL,
-                UNIQUE KEY uq_pilot_athletes_coach_name (coach_slug, name)
+                UNIQUE KEY uq_pilot_athletes_coach_name (coach_slug, name),
+                KEY idx_pilot_athletes_archived (coach_slug, archived_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
         $pdo->exec("
@@ -196,10 +198,12 @@ function legion_pilot_db_init_schema(PDO $pdo, $driver) {
             name TEXT NOT NULL,
             photo TEXT NOT NULL DEFAULT '',
             birthdate TEXT NULL,
+            archived_at TEXT NULL DEFAULT NULL,
             created_at TEXT NOT NULL,
             UNIQUE (coach_slug, name)
         )
     ");
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_pilot_athletes_archived ON pilot_athletes(coach_slug, archived_at)');
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS pilot_results (
             athlete_id INTEGER NOT NULL,
@@ -306,6 +310,19 @@ function legion_pilot_db_apply_migrations(PDO $pdo, $driver) {
             $pdo->exec('ALTER TABLE pilot_athletes ADD COLUMN birthdate DATE NULL AFTER photo');
         } else {
             $pdo->exec('ALTER TABLE pilot_athletes ADD COLUMN birthdate TEXT NULL');
+        }
+    }
+    if (!legion_pilot_db_column_exists($pdo, 'pilot_athletes', 'archived_at')) {
+        if ($driver === 'mysql') {
+            $pdo->exec('ALTER TABLE pilot_athletes ADD COLUMN archived_at DATETIME NULL DEFAULT NULL AFTER birthdate');
+            try {
+                $pdo->exec('ALTER TABLE pilot_athletes ADD KEY idx_pilot_athletes_archived (coach_slug, archived_at)');
+            } catch (Exception $e) {
+                // index may already exist
+            }
+        } else {
+            $pdo->exec('ALTER TABLE pilot_athletes ADD COLUMN archived_at TEXT NULL DEFAULT NULL');
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_pilot_athletes_archived ON pilot_athletes(coach_slug, archived_at)');
         }
     }
     legion_pilot_db_meta_set($pdo, 'schema_version', (string) LEGION_PILOT_DB_SCHEMA_VERSION);
@@ -448,6 +465,11 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo', array $options 
 
     $includeHistory = !array_key_exists('includeHistory', $options) || $options['includeHistory'];
     $includeAchievements = !array_key_exists('includeAchievements', $options) || $options['includeAchievements'];
+    // active (default) | archived | all
+    $archiveFilter = isset($options['archiveFilter']) ? (string) $options['archiveFilter'] : 'active';
+    if (!in_array($archiveFilter, array('active', 'archived', 'all'), true)) {
+        $archiveFilter = 'active';
+    }
 
     $pdo = legion_pilot_db_pdo();
     if (!$pdo) {
@@ -458,16 +480,27 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo', array $options 
     $athletes = array();
     $nameById = array();
 
-    $rowsStmt = $pdo->prepare('SELECT id, name, photo, birthdate FROM pilot_athletes WHERE coach_slug = ? ORDER BY id ASC');
+    $sql = 'SELECT id, name, photo, birthdate, archived_at FROM pilot_athletes WHERE coach_slug = ?';
+    if ($archiveFilter === 'active') {
+        $sql .= ' AND archived_at IS NULL';
+    } elseif ($archiveFilter === 'archived') {
+        $sql .= ' AND archived_at IS NOT NULL';
+    }
+    $sql .= ' ORDER BY id ASC';
+    $rowsStmt = $pdo->prepare($sql);
     $rowsStmt->execute(array($coachSlug));
     $rows = $rowsStmt->fetchAll();
     foreach ($rows as $row) {
         $id = (int) $row['id'];
         $nameById[$id] = $row['name'];
         $athletes[$id] = array(
+            'id' => $id,
             'name' => $row['name'],
             'photo' => (string) $row['photo'],
             'birthdate' => !empty($row['birthdate']) ? (string) $row['birthdate'] : null,
+            'archivedAt' => !empty($row['archived_at'])
+                ? legion_pilot_db_format_ru_datetime($row['archived_at'])
+                : null,
             'rankMarks' => legion_pilot_default_marks(0, 0, 0),
         );
         foreach ($exercises as $key) {
@@ -515,7 +548,7 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo', array $options 
     $history = array();
     if ($includeHistory) {
         $histStmt = $pdo->prepare('
-            SELECT h.id, h.exercise, h.old_val, h.new_val, h.diff, h.created_at, a.name
+            SELECT h.id, h.athlete_id, h.exercise, h.old_val, h.new_val, h.diff, h.created_at, a.name
             FROM pilot_history h
             INNER JOIN pilot_athletes a ON a.id = h.athlete_id
             WHERE a.coach_slug = ?
@@ -525,6 +558,8 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo', array $options 
         while ($r = $histStmt->fetch()) {
             $history[] = array(
                 'id' => $r['id'],
+                'athleteId' => (int) $r['athlete_id'],
+                'coachSlug' => $coachSlug,
                 'date' => legion_pilot_db_format_ru_datetime($r['created_at']),
                 'name' => legion_normalize_person_name($r['name']),
                 'exercise' => $r['exercise'],
@@ -546,14 +581,15 @@ function legion_pilot_db_load_dataset($coachSlug = 'pilot-demo', array $options 
         ');
         $achStmt->execute(array($coachSlug));
         while ($r = $achStmt->fetch()) {
-            $name = legion_normalize_person_name($r['name']);
-            if ($name === '') {
+            $personName = legion_normalize_person_name($r['name']);
+            if ($personName === '') {
                 continue;
             }
-            if (!isset($achievements[$name])) {
-                $achievements[$name] = array();
+            $key = $coachSlug . ':' . $personName;
+            if (!isset($achievements[$key])) {
+                $achievements[$key] = array();
             }
-            $achievements[$name][] = array(
+            $achievements[$key][] = array(
                 'id' => $r['achievement_id'],
                 'date' => $r['granted_at'],
             );
@@ -651,10 +687,13 @@ function legion_pilot_db_write_dataset(PDO $pdo, array $data, $touchUpdatedAt = 
     if (!empty($keepIds)) {
         $placeholders = implode(',', array_fill(0, count($keepIds), '?'));
         $params = array_merge(array($coachSlug), $keepIds);
-        $del = $pdo->prepare('DELETE FROM pilot_athletes WHERE coach_slug = ? AND id NOT IN (' . $placeholders . ')');
+        // Не трогаем архивных: иначе полное сохранение активных удалит архив.
+        $del = $pdo->prepare(
+            'DELETE FROM pilot_athletes WHERE coach_slug = ? AND archived_at IS NULL AND id NOT IN (' . $placeholders . ')'
+        );
         $del->execute($params);
     } else {
-        $del = $pdo->prepare('DELETE FROM pilot_athletes WHERE coach_slug = ?');
+        $del = $pdo->prepare('DELETE FROM pilot_athletes WHERE coach_slug = ? AND archived_at IS NULL');
         $del->execute(array($coachSlug));
     }
 
@@ -676,20 +715,34 @@ function legion_pilot_db_write_dataset(PDO $pdo, array $data, $touchUpdatedAt = 
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
     $aidStmt = $pdo->prepare('SELECT id FROM pilot_athletes WHERE coach_slug = ? AND name = ? LIMIT 1');
+    $aidByIdStmt = $pdo->prepare('SELECT id FROM pilot_athletes WHERE coach_slug = ? AND id = ? LIMIT 1');
     foreach ($history as $entry) {
-        if (!is_array($entry) || empty($entry['name'])) {
+        if (!is_array($entry)) {
             continue;
         }
-        $normName = legion_normalize_person_name($entry['name']);
-        $aidStmt->execute(array($coachSlug, $normName));
-        $aidRow = $aidStmt->fetch();
-        if (!$aidRow) {
+        $athleteId = 0;
+        if (!empty($entry['athleteId']) && is_numeric($entry['athleteId'])) {
+            $aidByIdStmt->execute(array($coachSlug, (int) $entry['athleteId']));
+            $aidRow = $aidByIdStmt->fetch();
+            if ($aidRow) {
+                $athleteId = (int) $aidRow['id'];
+            }
+        }
+        if ($athleteId <= 0 && !empty($entry['name'])) {
+            $normName = legion_normalize_person_name($entry['name']);
+            $aidStmt->execute(array($coachSlug, $normName));
+            $aidRow = $aidStmt->fetch();
+            if ($aidRow) {
+                $athleteId = (int) $aidRow['id'];
+            }
+        }
+        if ($athleteId <= 0) {
             continue;
         }
         $createdAt = isset($entry['date']) ? legion_pilot_db_parse_ru_datetime($entry['date']) : $now;
         $insertHistory->execute(array(
             isset($entry['id']) ? (string) $entry['id'] : legion_pilot_new_history_id(),
-            (int) $aidRow['id'],
+            $athleteId,
             isset($entry['exercise']) ? (string) $entry['exercise'] : '',
             isset($entry['oldVal']) && is_numeric($entry['oldVal']) ? (float) $entry['oldVal'] : null,
             isset($entry['newVal']) && is_numeric($entry['newVal']) ? (float) $entry['newVal'] : null,
@@ -710,11 +763,16 @@ function legion_pilot_db_write_dataset(PDO $pdo, array $data, $touchUpdatedAt = 
     $insertAch = $pdo->prepare('
         INSERT INTO pilot_achievements (athlete_id, achievement_id, granted_at) VALUES (?, ?, ?)
     ');
-    foreach ($achievements as $personName => $items) {
+    foreach ($achievements as $personKey => $items) {
         if (!is_array($items)) {
             continue;
         }
-        $normName = legion_normalize_person_name($personName);
+        $normName = function_exists('legion_pilot_person_key_name')
+            ? legion_pilot_person_key_name($personKey)
+            : legion_normalize_person_name($personKey);
+        if ($normName === '') {
+            continue;
+        }
         $aidStmt->execute(array($coachSlug, $normName));
         $aidRow = $aidStmt->fetch();
         if (!$aidRow) {
@@ -813,6 +871,12 @@ function legion_pilot_db_rank_history_entry_from_row(array $row) {
         'name' => legion_normalize_person_name($row['name']),
         'event' => (string) $row['event'],
     );
+    if (!empty($row['athlete_id'])) {
+        $entry['athleteId'] = (int) $row['athlete_id'];
+    }
+    if (!empty($row['coach_slug'])) {
+        $entry['coachSlug'] = (string) $row['coach_slug'];
+    }
     if ($row['mark_index'] !== null && $row['mark_index'] !== '') {
         $entry['markIndex'] = (int) $row['mark_index'];
     }
@@ -837,7 +901,8 @@ function legion_pilot_db_load_all_rank_history() {
     legion_pilot_db_ensure_rank_history_migrated();
 
     $stmt = $pdo->query('
-        SELECT rh.id, rh.event, rh.mark_index, rh.old_val, rh.new_val, rh.created_at, a.name
+        SELECT rh.id, rh.athlete_id, rh.event, rh.mark_index, rh.old_val, rh.new_val, rh.created_at,
+               a.name, a.coach_slug
         FROM pilot_rank_history rh
         INNER JOIN pilot_athletes a ON a.id = rh.athlete_id
         ORDER BY rh.created_at ASC, rh.id ASC
@@ -861,6 +926,89 @@ function legion_pilot_db_find_athlete_id_by_name(PDO $pdo, $name) {
     $stmt->execute(array($normName));
     $row = $stmt->fetch();
     return $row ? (int) $row['id'] : 0;
+}
+
+function legion_pilot_db_find_athlete_by_id(PDO $pdo, $coachSlug, $athleteId) {
+    $athleteId = (int) $athleteId;
+    if ($athleteId <= 0) {
+        return null;
+    }
+    $stmt = $pdo->prepare('
+        SELECT id, name, photo, birthdate, archived_at
+        FROM pilot_athletes
+        WHERE coach_slug = ? AND id = ?
+        LIMIT 1
+    ');
+    $stmt->execute(array($coachSlug, $athleteId));
+    $row = $stmt->fetch();
+    if (!$row) {
+        return null;
+    }
+    return array(
+        'id' => (int) $row['id'],
+        'name' => (string) $row['name'],
+        'photo' => (string) $row['photo'],
+        'birthdate' => !empty($row['birthdate']) ? (string) $row['birthdate'] : null,
+        'archived_at' => !empty($row['archived_at']) ? (string) $row['archived_at'] : null,
+    );
+}
+
+/**
+ * @return array{id:int,name:string,photo:string,birthdate:?string,archived_at:?string}|null
+ */
+function legion_pilot_db_find_athlete_by_name(PDO $pdo, $coachSlug, $name) {
+    if (!function_exists('legion_normalize_person_name')) {
+        require_once __DIR__ . '/ranks_lib.php';
+    }
+    $normName = legion_normalize_person_name($name);
+    if ($normName === '') {
+        return null;
+    }
+    $stmt = $pdo->prepare('
+        SELECT id, name, photo, birthdate, archived_at
+        FROM pilot_athletes
+        WHERE coach_slug = ? AND name = ?
+        LIMIT 1
+    ');
+    $stmt->execute(array($coachSlug, $normName));
+    $row = $stmt->fetch();
+    if (!$row) {
+        return null;
+    }
+    return array(
+        'id' => (int) $row['id'],
+        'name' => (string) $row['name'],
+        'photo' => (string) $row['photo'],
+        'birthdate' => !empty($row['birthdate']) ? (string) $row['birthdate'] : null,
+        'archived_at' => !empty($row['archived_at']) ? (string) $row['archived_at'] : null,
+    );
+}
+
+function legion_pilot_db_set_athlete_archived(PDO $pdo, $athleteId, $archived) {
+    $athleteId = (int) $athleteId;
+    if ($athleteId <= 0) {
+        throw new InvalidArgumentException('Спортсмен не найден');
+    }
+    $value = $archived ? legion_pilot_db_now_sql() : null;
+    $stmt = $pdo->prepare('UPDATE pilot_athletes SET archived_at = ? WHERE id = ?');
+    $stmt->execute(array($value, $athleteId));
+}
+
+function legion_pilot_db_rename_athlete_by_id(PDO $pdo, $athleteId, $newName) {
+    $athleteId = (int) $athleteId;
+    if ($athleteId <= 0) {
+        throw new InvalidArgumentException('Спортсмен не найден');
+    }
+    if (!function_exists('legion_normalize_person_name')) {
+        require_once __DIR__ . '/ranks_lib.php';
+    }
+    $newName = legion_normalize_person_name($newName);
+    if ($newName === '') {
+        throw new InvalidArgumentException('Укажите ФИО');
+    }
+    $stmt = $pdo->prepare('UPDATE pilot_athletes SET name = ? WHERE id = ?');
+    $stmt->execute(array($newName, $athleteId));
+    return $newName;
 }
 
 function legion_pilot_db_trim_rank_history_for_athlete(PDO $pdo, $athleteId, $limit = LEGION_PILOT_RANK_HISTORY_PER_ATHLETE) {
@@ -922,10 +1070,22 @@ function legion_pilot_db_append_rank_history_entries(array $entries) {
     $inserted = 0;
 
     foreach ($entries as $entry) {
-        if (!is_array($entry) || empty($entry['name']) || empty($entry['event'])) {
+        if (!is_array($entry) || empty($entry['event'])) {
             continue;
         }
-        $athleteId = legion_pilot_db_find_athlete_id_by_name($pdo, $entry['name']);
+        $athleteId = 0;
+        if (!empty($entry['athleteId']) && is_numeric($entry['athleteId'])) {
+            $athleteId = (int) $entry['athleteId'];
+        }
+        if ($athleteId <= 0 && !empty($entry['name'])) {
+            $coachSlug = isset($entry['coachSlug']) ? trim((string) $entry['coachSlug']) : '';
+            if ($coachSlug !== '') {
+                $found = legion_pilot_db_find_athlete_by_name($pdo, $coachSlug, $entry['name']);
+                $athleteId = $found ? (int) $found['id'] : 0;
+            } else {
+                $athleteId = legion_pilot_db_find_athlete_id_by_name($pdo, $entry['name']);
+            }
+        }
         if ($athleteId <= 0) {
             continue;
         }

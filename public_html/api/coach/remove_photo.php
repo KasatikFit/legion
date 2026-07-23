@@ -22,13 +22,16 @@ try {
 legion_coach_require_auth_json($coach);
 
 $name = is_array($payload) && isset($payload['name']) ? (string) $payload['name'] : '';
+$athleteId = is_array($payload) ? legion_pilot_payload_athlete_id($payload) : 0;
 
 try {
-    $data = legion_pilot_remove_athlete_photo($name, $coach);
-    $norm = legion_normalize_person_name($name);
+    $data = legion_pilot_remove_athlete_photo($name, $coach, $athleteId);
+    $resolved = legion_pilot_resolve_athlete($data['athletes'], $athleteId, $name);
+    $norm = legion_normalize_person_name($resolved['athlete']['name']);
     echo json_encode(array(
         'success' => true,
         'name' => $norm,
+        'athleteId' => isset($resolved['athlete']['id']) ? (int) $resolved['athlete']['id'] : null,
         'photo' => legion_pilot_resolve_photo_url($norm, '', $coach),
         'hasPhoto' => false,
         'avatarIndex' => legion_pilot_default_avatar_index($norm),

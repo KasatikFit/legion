@@ -1,14 +1,16 @@
 /**
- * Страница карточки спортсмена: /athlete/?name=...&coach=...
+ * Страница карточки спортсмена:
+ * /athlete/?id=42&coach=...  (стабильная ссылка)
+ * /athlete/?name=...&coach=...  (старый формат)
  */
 const LegionAthletePage = {
-    params: { name: '', coach: '' },
+    params: { id: 0, name: '', coach: '' },
 
     init() {
         this.parseParams();
         LegionCore.bindCommonGlobals();
         LegionCore.initModalClicks();
-        window.openAthleteModal = (name) => this.navigateToAthlete(name);
+        window.openAthleteModal = (name, coachSlug) => this.navigateToAthlete(name, coachSlug);
         this.load().catch((err) => {
             console.error('Ошибка загрузки карточки:', err);
             this.showError('Не удалось загрузить карточку: ' + (err.message || err));
@@ -18,8 +20,11 @@ const LegionAthletePage = {
     parseParams() {
         const body = document.body;
         const fromBody = body && body.getAttribute('data-athlete-name');
+        const idFromBody = body && body.getAttribute('data-athlete-id');
         const coachFromBody = body && body.getAttribute('data-coach-slug');
         const p = new URLSearchParams(location.search);
+        const idRaw = p.get('id') || p.get('athleteId') || idFromBody || '';
+        this.params.id = Number(idRaw) > 0 ? Number(idRaw) : 0;
         this.params.name = (p.get('name') || fromBody || '').trim();
         this.params.coach = (p.get('coach') || coachFromBody || '').trim();
     },
@@ -29,21 +34,37 @@ const LegionAthletePage = {
         if (root) root.innerHTML = `<p class="error">${LegionCore.escapeHtml(message)}</p>`;
     },
 
-    navigateToAthlete(name) {
-        const athlete = (LegionCore.state.athletesData || []).find((a) => a.name === name);
-        const coachSlug = athlete ? athlete.coachSlug : this.params.coach;
-        location.href = LegionCore.athleteProfileUrl(name, coachSlug);
+    navigateToAthlete(name, coachSlug) {
+        const preferredSlug = coachSlug || this.params.coach;
+        const athlete = (LegionCore.state.athletesData || []).find((a) =>
+            a.name === name && (!preferredSlug || a.coachSlug === preferredSlug)
+        ) || (LegionCore.state.athletesData || []).find((a) => a.name === name);
+        const slug = (athlete && athlete.coachSlug) || preferredSlug;
+        location.href = LegionCore.athleteProfileUrl(athlete || name, slug);
+    },
+
+    sameAthlete(a, b) {
+        return LegionCore.athletesMatch(a, b);
     },
 
     findAthlete(athletes) {
+        if (this.params.id > 0) {
+            const byId = athletes.filter((a) => Number(a.id || 0) === this.params.id);
+            if (byId.length === 1) return byId[0];
+            if (byId.length > 1 && this.params.coach) {
+                const withCoach = byId.find((a) => a.coachSlug === this.params.coach);
+                if (withCoach) return withCoach;
+            }
+            if (byId.length > 0) return byId[0];
+        }
+
         const target = LegionCore.normalizePersonName(this.params.name);
         if (!target) return null;
         const withCoach = athletes.filter((a) =>
             LegionCore.normalizePersonName(a.name) === target
             && (!this.params.coach || a.coachSlug === this.params.coach)
         );
-        if (withCoach.length === 1) return withCoach[0];
-        if (withCoach.length > 1) return withCoach[0];
+        if (withCoach.length >= 1) return withCoach[0];
         return athletes.find((a) => LegionCore.normalizePersonName(a.name) === target) || null;
     },
 
@@ -54,8 +75,8 @@ const LegionAthletePage = {
     async load() {
         const root = document.getElementById('athlete-profile-root');
         if (!root) return;
-        if (!this.params.name) {
-            this.showError('Не указано имя спортсмена.');
+        if (!this.params.id && !this.params.name) {
+            this.showError('Не указан спортсмен.');
             return;
         }
 
@@ -64,11 +85,10 @@ const LegionAthletePage = {
         LegionCore.state.athletesData = athletes;
         LegionCore.applyRankData(rankData, athletes);
         LegionCore.calculateAllRatings(athletes);
-        LegionCore.state.overallSorted = LegionCore.sortByTotal([...athletes]);
-        LegionCore.state.overallSorted.forEach((a, idx) => {
-            a.pointsRank = idx + 1;
-            a.overallRank = idx + 1;
-        });
+        const overallMap = LegionCore.buildClubOverallRankMap(athletes);
+        LegionCore.state.clubOverallRankMap = overallMap;
+        LegionCore.applyClubOverallRanks(athletes, overallMap);
+        LegionCore.state.overallSorted = LegionCore.sortByTotal(athletes.filter((a) => !a.isCoach));
         LegionCore.initExerciseSorted(athletes);
         LegionCore.updateAllAchievements();
 
@@ -92,12 +112,22 @@ const LegionAthletePage = {
         }
     },
 
-    getCoachRank(name, athlete) {
-        const coachGroup = (LegionCore.state.athletesData || [])
-            .filter((a) => a.coach === athlete.coach && !a.isCoach)
-            .sort((a, b) => b.total - a.total);
-        const idx = coachGroup.findIndex((a) => a.name === name);
+    getCoachGroupSorted(athlete) {
+        return LegionCore.sortByTotal(
+            (LegionCore.state.athletesData || []).filter((a) =>
+                a.coach === athlete.coach && !a.isCoach
+            )
+        );
+    },
+
+    getCoachRank(athlete) {
+        const coachGroup = this.getCoachGroupSorted(athlete);
+        const idx = coachGroup.findIndex((a) => this.sameAthlete(a, athlete));
         return idx >= 0 ? idx + 1 : '?';
+    },
+
+    buildGoalHtml(athlete) {
+        return LegionCore.buildAthleteGoalHtml(athlete);
     },
 
     buildResultsTable(athlete) {
@@ -144,7 +174,7 @@ const LegionAthletePage = {
     buildProfileHtml(athlete) {
         const name = athlete.name;
         const clubRank = LegionCore.getClubRank(name, athlete.coachSlug);
-        const coachRank = this.getCoachRank(name, athlete);
+        const coachRank = this.getCoachRank(athlete);
         const overallRank = LegionCore.getClubOverallRank(athlete);
         const isElite = this.isClubElite(athlete);
         const photoSrc = LegionCore.getAthletePhotoSrc(athlete.photo);
@@ -159,10 +189,11 @@ const LegionAthletePage = {
             : '';
 
         const rankSection = this.buildRankSectionHtml(athlete, clubRank);
-        const achData = LegionCore.getAchievementDisplayData(name);
-        const achievements = LegionUI.renderAchievementGrid(achData, { variant: 'full', showHeading: false });
+        const achData = LegionCore.getAchievementDisplayData(name, athlete.coachSlug);
+        const achievements = LegionUI.renderAchievementGrid(achData, { variant: 'showcase', showHeading: false });
         const achEarned = achData.filter((a) => a.active).length;
-        const historySections = LegionCore.renderAthleteHistorySections(name);
+        const historySections = LegionCore.renderAthleteHistorySections(name, athlete.coachSlug);
+        const goalHtml = this.buildGoalHtml(athlete);
 
         const backHref = athlete.coachSlug
             ? `/${encodeURIComponent(athlete.coachSlug)}/`
@@ -183,6 +214,7 @@ const LegionAthletePage = {
                         <strong>Место у тренера:</strong> ${coachRank} |
                         <strong>Общее место:</strong> ${overallRank}
                     </p>
+                    ${goalHtml}
                 </header>
 
                 <section class="athlete-profile-section">
@@ -193,6 +225,11 @@ const LegionAthletePage = {
                             <tbody>${this.buildResultsTable(athlete)}</tbody>
                         </table>
                     </div>
+                </section>
+
+                <section class="athlete-profile-section athlete-profile-path-section">
+                    <h3 class="section-title">Карта легионера</h3>
+                    ${LegionUI.renderLegionPathMap(clubRank)}
                 </section>
 
                 <section class="athlete-profile-section athlete-profile-ranks-section">

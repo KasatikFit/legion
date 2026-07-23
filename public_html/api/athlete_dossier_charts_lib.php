@@ -6,6 +6,7 @@ function legion_dossier_build_charts(array $dossier, array $history, array $grou
     $labels = legion_dossier_exercise_labels();
     $keys = legion_pilot_exercise_keys();
     $name = $dossier['athlete']['name'];
+    $athleteId = !empty($dossier['athlete']['id']) ? (int) $dossier['athlete']['id'] : 0;
 
     $groupCompare = array();
     $compareMax = 1.0;
@@ -22,7 +23,7 @@ function legion_dossier_build_charts(array $dossier, array $history, array $grou
 
     $radar = legion_dossier_build_radar_data($dossier['results'], $groupMaxes);
 
-    $timelines = legion_dossier_build_exercise_timelines($history, $name, $keys, $labels, $dossier['results']);
+    $timelines = legion_dossier_build_exercise_timelines($history, $name, $keys, $labels, $dossier['results'], $athleteId);
 
     return array(
         'groupCompare' => $groupCompare,
@@ -56,18 +57,17 @@ function legion_dossier_build_radar_data(array $results, array $groupMaxes) {
     );
 }
 
-function legion_dossier_build_exercise_timelines(array $history, $name, array $keys, array $labels, array $results) {
-    $norm = legion_normalize_person_name($name);
+function legion_dossier_build_exercise_timelines(array $history, $name, array $keys, array $labels, array $results, $athleteId = 0) {
     $historyByExercise = array();
     foreach ($keys as $key) {
         $historyByExercise[$key] = array();
     }
 
     foreach ($history as $entry) {
-        if (!is_array($entry) || empty($entry['name']) || empty($entry['exercise'])) {
+        if (!is_array($entry) || empty($entry['exercise'])) {
             continue;
         }
-        if (legion_normalize_person_name($entry['name']) !== $norm) {
+        if (!legion_dossier_history_entry_matches($entry, $name, $athleteId)) {
             continue;
         }
         $ex = $entry['exercise'];

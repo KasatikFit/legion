@@ -268,6 +268,7 @@ function legion_build_club_page_data_from_mysql() {
             $dataset = legion_pilot_dataset_for_api($slug, array(
                 'includeHistory' => false,
                 'recomputeAchievements' => false,
+                'includeArchivedList' => false,
             ));
         } catch (Exception $e) {
             $warnings[] = array(
@@ -347,7 +348,9 @@ function legion_build_coach_page_data_from_mysql($coachSlug) {
     require_once __DIR__ . '/pilot_lib.php';
     require_once __DIR__ . '/club_storage_lib.php';
     $coachSlug = legion_coach_normalize_slug($coachSlug);
-    $dataset = legion_pilot_dataset_for_api($coachSlug);
+    $dataset = legion_pilot_dataset_for_api($coachSlug, array(
+        'includeArchivedList' => false,
+    ));
     $meta = $dataset['coach'];
 
     $warnings = array();

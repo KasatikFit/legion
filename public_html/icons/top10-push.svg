@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label=""-10 >B68<0=8O">
-  <circle cx="32" cy="32" r="28" fill="#14141a" stroke="#8b8b98" stroke-width="2"/>
-  <ellipse cx="32" cy="38" rx="14" ry="5" fill="#2a2a32"/>
-  <circle cx="22" cy="34" r="5" fill="#c0c0c0"/>
-  <circle cx="42" cy="34" r="5" fill="#c0c0c0"/>
-  <rect x="26" y="28" width="12" height="8" rx="4" fill="#e8e8ec"/>
-  <line x1="18" y1="34" x2="46" y2="34" stroke="#c0c0c0" stroke-width="3" stroke-linecap="round"/>
-  <text x="32" y="56" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#8b8b98">10</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="!?5F80;8AB B68<0=8O"><defs><linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2f7fd"/><stop offset=".55" stop-color="#b7c1d2"/><stop offset="1" stop-color="#6d7789"/></linearGradient></defs><circle cx="32" cy="32" r="28" fill="#0f1620" stroke="url(#s)" stroke-width="2.5"/><circle cx="32" cy="32" r="20" fill="url(#s)" opacity=".92"/><circle cx="32" cy="24" r="4" fill="#132030"/><path d="M21 38c4-7 18-7 22 0M16 40l8-1m16 1 8 1M26 35h12" fill="none" stroke="#132030" stroke-width="4" stroke-linecap="round"/><text x="32" y="53" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="8" fill="#132030">10</text></svg>

@@ -269,7 +269,7 @@ function legion_report_auth_failure_hints($token, $coachSlug, $defaultCoach = ''
         $hints[] = 'В ссылке не указана группа: добавьте &coach=slug (например coach=yakutin).';
         $hints[] = 'Либо откройте /report.php?token=... с ключом global в конфиге — появится выбор группы.';
         if ($defaultCoach !== '') {
-            $hints[] = 'Для пилота: /pilot-demo/report.php?token=...&name=...';
+            $hints[] = 'Для пилота: /pilot-demo/report.php?token=...&id=...';
         }
         if (!empty($configuredKeys) && !in_array('global', $configuredKeys, true)) {
             $hints[] = 'Сейчас в конфиге только: ' . implode(', ', $configuredKeys) . '. Для всех групп добавьте ключ global.';
@@ -290,7 +290,7 @@ function legion_report_auth_failure_hints($token, $coachSlug, $defaultCoach = ''
         $hints[] = 'Токен в ссылке не совпадает с report_token_config.php для группы «' . $coachSlug . '».';
         $hints[] = 'Сверьте токен в ссылке и в PHP-файле (без пробелов). Используйте одинарные кавычки, если в токене есть $.';
     }
-    $hints[] = 'Пример: /report.php?token=ВАШ_ТОКЕН&coach=' . $coachSlug;
+    $hints[] = 'Пример: /report.php?token=ВАШ_ТОКЕН&coach=' . $coachSlug . '&id=ID';
     return $hints;
 }
 
@@ -316,12 +316,15 @@ function legion_report_wants_ai() {
     return legion_yandex_gpt_is_configured();
 }
 
-function legion_report_build_url($reportBase, $token, $coachSlug, $name = '', $withAi = false) {
+function legion_report_build_url($reportBase, $token, $coachSlug, $name = '', $withAi = false, $athleteId = 0) {
     $parts = array(
         'token' => $token,
         'coach' => $coachSlug,
     );
-    if ($name !== '') {
+    $athleteId = (int) $athleteId;
+    if ($athleteId > 0) {
+        $parts['id'] = $athleteId;
+    } elseif ($name !== '') {
         $parts['name'] = $name;
     }
     if ($withAi) {
@@ -384,6 +387,12 @@ function legion_report_serve_request(array $options = array()) {
 
     $token = legion_report_normalize_token(isset($_GET['token']) ? $_GET['token'] : '');
     $name = isset($_GET['name']) ? trim((string) $_GET['name']) : '';
+    $athleteId = 0;
+    if (isset($_GET['id']) && is_numeric($_GET['id'])) {
+        $athleteId = (int) $_GET['id'];
+    } elseif (isset($_GET['athleteId']) && is_numeric($_GET['athleteId'])) {
+        $athleteId = (int) $_GET['athleteId'];
+    }
     $withAi = legion_report_wants_ai();
     $coachSlug = legion_report_resolve_coach_slug(
         isset($_GET['coach']) ? $_GET['coach'] : '',
@@ -414,7 +423,7 @@ function legion_report_serve_request(array $options = array()) {
         return;
     }
 
-    if ($name === '') {
+    if ($athleteId <= 0 && $name === '') {
         $data = legion_pilot_load_dataset($coachSlug);
         $athletes = isset($data['athletes']) && is_array($data['athletes']) ? $data['athletes'] : array();
         header('Content-Type: text/html; charset=utf-8');
@@ -426,7 +435,7 @@ function legion_report_serve_request(array $options = array()) {
         return;
     }
 
-    $dossier = legion_dossier_build($coachSlug, $name);
+    $dossier = legion_dossier_build($coachSlug, $name, $athleteId);
     if ($dossier === null) {
         http_response_code(404);
         header('Content-Type: text/html; charset=utf-8');

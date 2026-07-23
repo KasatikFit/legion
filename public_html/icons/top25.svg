@@ -1,11 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ТОП-25">
-  <defs>
-    <linearGradient id="r" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e31837"/>
-      <stop offset="100%" stop-color="#8b0000"/>
-    </linearGradient>
-  </defs>
-  <circle cx="32" cy="32" r="28" fill="#14141a" stroke="url(#r)" stroke-width="2.5"/>
-  <path d="M32 8 L35 22 H49 L38 30 L42 44 L32 36 L22 44 L26 30 L15 22 H29 Z" fill="url(#r)" stroke="#f5d76e" stroke-width="1"/>
-  <text x="32" y="54" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" font-weight="bold" fill="#f5d76e">25</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label=")8B 538>=0"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecf7ff"/><stop offset=".55" stop-color="#6caeff"/><stop offset="1" stop-color="#214d8f"/></linearGradient></defs><path d="M32 6 52 13v16c0 14-9 23-20 29C21 52 12 43 12 29V13Z" fill="#0e1520" stroke="url(#g)" stroke-width="2.5"/><path d="M32 14 45 18v11c0 8-5 14-13 19-8-5-13-11-13-19V18Z" fill="url(#g)" opacity=".95"/><text x="32" y="34" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="12" fill="#132030">25</text><path d="M24 39h16" stroke="#132030" stroke-width="3" stroke-linecap="round"/></svg>

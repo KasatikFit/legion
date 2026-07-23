@@ -275,6 +275,12 @@ function legion_club_save_elite($coachSlug, array $elite, $lastRotationMonth = n
         $lastRotationMonth !== null && $lastRotationMonth !== '' ? (string) $lastRotationMonth : null,
         legion_club_storage_now_sql(),
     ));
+    if (function_exists('legion_pilot_invalidate_page_cache')) {
+        legion_pilot_invalidate_page_cache($coachSlug);
+    } else {
+        require_once __DIR__ . '/page_data_lib.php';
+        legion_page_data_cache_clear($coachSlug);
+    }
     return true;
 }
 
@@ -285,7 +291,16 @@ function legion_club_save_elite_to_json($coachSlug, array $elite, $lastRotationM
         'elite' => array_values($elite),
         'lastRotationMonth' => $lastRotationMonth,
     );
-    return storage_write_json($file, $all);
+    $ok = storage_write_json($file, $all);
+    if ($ok) {
+        if (function_exists('legion_pilot_invalidate_page_cache')) {
+            legion_pilot_invalidate_page_cache($coachSlug);
+        } else {
+            require_once __DIR__ . '/page_data_lib.php';
+            legion_page_data_cache_clear($coachSlug);
+        }
+    }
+    return $ok;
 }
 
 function legion_club_load_scope_achievements($scope, PDO $pdo = null) {
@@ -367,6 +382,15 @@ function legion_club_save_scope_achievements($scope, array $data, PDO $pdo = nul
             $insert->execute(array($scope, $name, (string) $item['id'], $granted));
         }
     }
+    if ($scope === 'global') {
+        require_once __DIR__ . '/page_data_lib.php';
+        legion_page_data_cache_clear(null);
+    } elseif (function_exists('legion_pilot_invalidate_page_cache')) {
+        legion_pilot_invalidate_page_cache($scope);
+    } else {
+        require_once __DIR__ . '/page_data_lib.php';
+        legion_page_data_cache_clear($scope);
+    }
     return true;
 }
 
@@ -374,7 +398,19 @@ function legion_club_save_scope_achievements_to_json($scope, array $data) {
     $file = __DIR__ . '/achievements.json';
     $all = storage_read_json($file, array());
     $all[$scope] = $data;
-    return storage_write_json($file, $all);
+    $ok = storage_write_json($file, $all);
+    if ($ok) {
+        if ($scope === 'global') {
+            require_once __DIR__ . '/page_data_lib.php';
+            legion_page_data_cache_clear(null);
+        } elseif (function_exists('legion_pilot_invalidate_page_cache')) {
+            legion_pilot_invalidate_page_cache($scope);
+        } else {
+            require_once __DIR__ . '/page_data_lib.php';
+            legion_page_data_cache_clear($scope);
+        }
+    }
+    return $ok;
 }
 
 function legion_club_load_snapshot($scope, $kind, PDO $pdo = null) {
@@ -509,7 +545,7 @@ function legion_club_load_all_history() {
     }
 
     $stmt = $pdo->query('
-        SELECT h.id, h.exercise, h.old_val, h.new_val, h.diff, h.created_at, a.name
+        SELECT h.id, h.athlete_id, h.exercise, h.old_val, h.new_val, h.diff, h.created_at, a.name, a.coach_slug
         FROM pilot_history h
         INNER JOIN pilot_athletes a ON a.id = h.athlete_id
         ORDER BY h.created_at ASC, h.id ASC
@@ -518,6 +554,8 @@ function legion_club_load_all_history() {
     while ($row = $stmt->fetch()) {
         $history[] = array(
             'id' => $row['id'],
+            'athleteId' => (int) $row['athlete_id'],
+            'coachSlug' => (string) $row['coach_slug'],
             'date' => legion_pilot_db_format_ru_datetime($row['created_at']),
             'name' => legion_normalize_person_name($row['name']),
             'exercise' => $row['exercise'],
@@ -534,15 +572,19 @@ function legion_club_merge_achievement_maps(array $base, array $extra) {
         if (!is_array($items)) {
             continue;
         }
-        $norm = legion_normalize_person_name($name);
-        if ($norm === '') {
+        // Сохраняем scoped-ключи (coach:фио); голые имена — для global scope.
+        $key = (string) $name;
+        if (strpos($key, ':') === false) {
+            $key = legion_normalize_person_name($key);
+        }
+        if ($key === '') {
             continue;
         }
-        if (!isset($base[$norm])) {
-            $base[$norm] = array();
+        if (!isset($base[$key])) {
+            $base[$key] = array();
         }
         $existingIds = array();
-        foreach ($base[$norm] as $item) {
+        foreach ($base[$key] as $item) {
             if (is_array($item) && !empty($item['id'])) {
                 $existingIds[$item['id']] = true;
             }
@@ -551,7 +593,7 @@ function legion_club_merge_achievement_maps(array $base, array $extra) {
             if (!is_array($item) || empty($item['id']) || isset($existingIds[$item['id']])) {
                 continue;
             }
-            $base[$norm][] = $item;
+            $base[$key][] = $item;
             $existingIds[$item['id']] = true;
         }
     }

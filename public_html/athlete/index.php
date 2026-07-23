@@ -4,16 +4,24 @@ require_once __DIR__ . '/../legion-version.php';
 
 $coachSlug = isset($_GET['coach']) ? trim((string) $_GET['coach']) : '';
 $athleteName = isset($_GET['name']) ? trim((string) $_GET['name']) : '';
+$athleteId = 0;
+if (isset($_GET['id']) && is_numeric($_GET['id'])) {
+    $athleteId = (int) $_GET['id'];
+} elseif (isset($_GET['athleteId']) && is_numeric($_GET['athleteId'])) {
+    $athleteId = (int) $_GET['athleteId'];
+}
 $coaches = legion_coaches_config();
 $legionVer = legion_asset_version();
 
-if ($athleteName === '') {
+if ($athleteId <= 0 && $athleteName === '') {
     http_response_code(404);
     echo 'Спортсмен не указан';
     exit;
 }
 
-$pageTitle = $athleteName . ' — Легион Силы';
+$pageTitle = $athleteName !== ''
+    ? ($athleteName . ' — Легион Силы')
+    : 'Карточка спортсмена — Легион Силы';
 $legionNavActive = $coachSlug !== '' && isset($coaches[$coachSlug]) ? 'coach' : 'club';
 $legionNavCoachSlug = $coachSlug;
 ?>
@@ -27,7 +35,11 @@ $legionNavCoachSlug = $coachSlug;
     <?php require __DIR__ . '/../legion-head-fonts.php'; ?>
     <link rel="stylesheet" href="/css/legion.css?v=<?php echo (int) $legionVer; ?>">
 </head>
-<body data-legion-page="athlete" data-athlete-name="<?php echo htmlspecialchars($athleteName, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $coachSlug !== '' ? ' data-coach-slug="' . htmlspecialchars($coachSlug, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
+<body data-legion-page="athlete"<?php
+echo $athleteId > 0 ? ' data-athlete-id="' . (int) $athleteId . '"' : '';
+echo $athleteName !== '' ? ' data-athlete-name="' . htmlspecialchars($athleteName, ENT_QUOTES, 'UTF-8') . '"' : '';
+echo $coachSlug !== '' ? ' data-coach-slug="' . htmlspecialchars($coachSlug, ENT_QUOTES, 'UTF-8') . '"' : '';
+?>>
     <header class="site-header no-print">
         <img src="/images/legion-logo.png" alt="Легион Самара" class="site-logo">
         <div class="site-header-text">

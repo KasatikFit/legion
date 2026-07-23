@@ -4,9 +4,11 @@
  * Скопируйте в report_token_config.php на сервере (не в Git).
  *
  * ССЫЛКА (любая группа):
- *   /report.php?token=ВАШ_ТОКЕН&coach=yakutin&name=Фамилия%20Имя
+ *   /report.php?token=ВАШ_ТОКЕН&coach=yakutin&id=42
+ *   /report.php?token=ВАШ_ТОКЕН&coach=yakutin&name=Фамилия%20Имя  (старый формат)
  *
  * ПИЛОТ:
+ *   /pilot-demo/report.php?token=ВАШ_ТОКЕН&id=42
  *   /pilot-demo/report.php?token=ВАШ_ТОКЕН&name=Фамилия%20Имя
  *
  * ВАЖНО:

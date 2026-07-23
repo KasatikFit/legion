@@ -28,12 +28,13 @@ try {
 legion_coach_require_auth_json($coach);
 
 $name = isset($payload['name']) ? (string) $payload['name'] : '';
+$athleteId = legion_pilot_payload_athlete_id($payload);
 $birthdate = isset($payload['birthdate']) ? $payload['birthdate'] : '';
 
 try {
-    $data = legion_pilot_update_birthdate($name, $birthdate, $coach);
-    $idx = legion_pilot_find_athlete_index($data['athletes'], $name);
-    $row = $idx >= 0 ? $data['athletes'][$idx] : array();
+    $data = legion_pilot_update_birthdate($name, $birthdate, $coach, $athleteId);
+    $resolved = legion_pilot_resolve_athlete($data['athletes'], $athleteId, $name);
+    $row = $resolved['athlete'];
     $normalized = isset($row['birthdate']) ? $row['birthdate'] : null;
     $age = legion_pilot_compute_age($normalized);
     echo json_encode(array(
@@ -41,6 +42,8 @@ try {
         'updatedAt' => $data['updatedAt'],
         'birthdate' => $normalized,
         'age' => $age,
+        'athleteId' => isset($row['id']) ? (int) $row['id'] : null,
+        'name' => isset($row['name']) ? $row['name'] : $name,
     ), JSON_UNESCAPED_UNICODE);
 } catch (InvalidArgumentException $e) {
     http_response_code(400);

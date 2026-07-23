@@ -61,9 +61,10 @@ const LegionPilotAchievements = {
         ];
     },
 
-    getDisplayData(athleteName, storedAll) {
-        const stored = storedAll || {};
-        const athleteAch = stored[athleteName] || [];
+    getDisplayData(athleteName, storedAll, coachSlug) {
+        const athleteAch = (typeof LegionCore !== 'undefined' && LegionCore.lookupAchievementEntries)
+            ? LegionCore.lookupAchievementEntries(athleteName, coachSlug, storedAll || {})
+            : ((storedAll || {})[athleteName] || []);
         const defs = this.definitions();
         return Object.keys(defs).map((id) => {
             const def = defs[id];
@@ -79,8 +80,8 @@ const LegionPilotAchievements = {
         });
     },
 
-    renderGrid(athleteName, storedAll) {
-        const achievements = this.getDisplayData(athleteName, storedAll);
+    renderGrid(athleteName, storedAll, coachSlug) {
+        const achievements = this.getDisplayData(athleteName, storedAll, coachSlug);
         const earned = achievements.filter((a) => a.active).length;
         let html = `<h3 class="section-title">Достижения <span class="ach-count">${earned} / ${achievements.length}</span></h3>`;
         html += '<p class="note pilot-ach-note">Тестовый режим — только пилотная группа</p>';

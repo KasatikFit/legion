@@ -10,6 +10,9 @@
                 <h2 id="modal-name"></h2>
                 <p id="modal-league"></p>
                 <p><span id="modal-coach" class="coach-label"></span></p>
+                <div class="modal-profile-actions no-print">
+                    <a href="/athlete/" id="athlete-modal-card-top" class="athlete-modal-card-btn athlete-modal-card-btn--top" hidden>Карточка спортсмена</a>
+                </div>
             </div>
             <p>
                 <strong>Место у тренера:</strong> <span id="modal-rank-coach"></span> |
@@ -25,7 +28,7 @@
             <div id="modal-achievements" class="achievements"></div>
             <div id="modal-progress" class="modal-progress-block"></div>
             <div class="modal-footer no-print">
-                <a href="#" id="athlete-modal-more" class="athlete-modal-more-btn" hidden>Подробнее</a>
+                <a href="/athlete/" id="athlete-modal-more" class="athlete-modal-more-btn" hidden>Полная карточка спортсмена</a>
             </div>
         </div>
     </div>

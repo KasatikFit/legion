@@ -77,7 +77,7 @@ const LegionCoachPage = {
     bindGlobals() {
         const self = this;
         window.switchTab = (tab) => self.switchTab(tab);
-        window.openAthleteModal = (name) => self.openAthleteModal(name);
+        window.openAthleteModal = (name, coachSlug) => self.openAthleteModal(name, coachSlug);
         window.openCoachModal = () => self.openCoachModal();
         window.rotateLeagues = () => self.rotateLeagues(false);
     },
@@ -602,14 +602,14 @@ const LegionCoachPage = {
         const top25 = athlete && LegionCore.isClubTop25(athlete)
             ? LegionCore.formatTop25Icon()
             : '';
-        return `${prefix}${LegionCore.formatAthleteLink(name)}${top25}`;
+        return `${prefix}${LegionCore.formatAthleteLink(name, athlete && athlete.coachSlug)}${top25}`;
     },
 
     buildCoachBenchmarkOverall() {
         const a = this.coachBenchmark;
         if (!a) return '';
         const slug = this.coach.slug;
-        let html = '<section class="coach-benchmark-section">';
+        let html = '<section class="coach-benchmark-section no-print">';
         html += '<h2 class="coach-benchmark-title">🏋️ Результаты тренера</h2>';
         html += '<div class="table-wrap"><table class="rating-table rating-table-coach-benchmark">';
         html += '<tr><th>ФИО</th><th>Ранг</th>';
@@ -678,16 +678,42 @@ const LegionCoachPage = {
 
     appendPrintFooter(html, show) {
         if (!show || !html) return html;
-        return html + '<div class="print-footer"><button class="print-btn no-print" onclick="window.print()">🖨️ Печать</button></div>';
+        const coachName = (this.coach && this.coach.name) ? this.coach.name : 'группы';
+        const dateStr = new Date().toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+        const printMeta = `
+            <div class="print-rating-meta">
+                <div class="print-rating-meta-top">
+                    <img class="print-rating-logo" src="/images/legion-logo.png" alt="Легион Силы" width="56" height="56">
+                    <div class="print-rating-meta-text">
+                        <h1 class="print-rating-title">Рейтинг — ${LegionCore.escapeHtml(coachName)}</h1>
+                        <p class="print-rating-brand">легион-силы.рф</p>
+                        <p class="print-rating-date">Дата печати: ${LegionCore.escapeHtml(dateStr)}</p>
+                    </div>
+                </div>
+            </div>`;
+        const printSheetFooter = `
+            <div class="print-rating-sheet-footer">
+                <span class="print-rating-sheet-footer-brand">Легион Силы</span>
+                <span class="print-rating-sheet-footer-site">легион-силы.рф</span>
+            </div>`;
+        return printMeta + html + printSheetFooter
+            + '<div class="print-footer"><button class="print-btn no-print" onclick="window.print()">🖨️ Печать</button></div>';
     },
 
-    openAthleteModal(name) {
+    openAthleteModal(name, coachSlug) {
         const modal = document.getElementById('athleteModal');
         if (!modal) {
             console.error('Окно спортсмена не найдено — залейте modals-coach.php на сервер.');
             return;
         }
-        const athlete = LegionCore.state.athletesData.find(a => a.name === name);
+        const preferredSlug = coachSlug || (this.coach && this.coach.slug) || '';
+        const athlete = (LegionCore.state.athletesData || []).find((a) =>
+            a.name === name && (!preferredSlug || a.coachSlug === preferredSlug)
+        ) || (LegionCore.state.athletesData || []).find((a) => a.name === name);
         if (!athlete) return;
 
         LegionCore.setOpenAthlete(name);

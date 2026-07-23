@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS pilot_athletes (
     name VARCHAR(255) NOT NULL,
     photo VARCHAR(512) NOT NULL DEFAULT '',
     birthdate DATE NULL,
+    archived_at DATETIME NULL DEFAULT NULL,
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_pilot_athletes_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -3,6 +3,7 @@
  */
 const LegionPilotTraining = {
     athletes: [],
+    archivedAthletes: [],
     rankData: {},
     history: [],
     achievements: {},
@@ -18,6 +19,8 @@ const LegionPilotTraining = {
     importPresets: [],
     coachProfile: null,
     coachRankLeague: 'auto',
+    expandedResultName: null,
+    expandedRankName: null,
 
     getExerciseList() {
         if (typeof LegionConfig !== 'undefined' && Array.isArray(LegionConfig.EXERCISES) && LegionConfig.EXERCISES.length) {
@@ -51,6 +54,26 @@ const LegionPilotTraining = {
 
     apiCoachBody(payload) {
         return Object.assign({ coach: this.coachSlug }, payload || {});
+    },
+
+    athleteRef(athleteOrName, extra) {
+        const body = Object.assign({}, extra || {});
+        if (athleteOrName && typeof athleteOrName === 'object') {
+            if (athleteOrName.name) body.name = athleteOrName.name;
+            if (athleteOrName.id) body.athleteId = Number(athleteOrName.id);
+        } else if (athleteOrName) {
+            body.name = athleteOrName;
+            const found = this.athletes.find((a) => a.name === athleteOrName)
+                || (this.archivedAthletes || []).find((a) => a.name === athleteOrName);
+            if (found && found.id) body.athleteId = Number(found.id);
+        }
+        return body;
+    },
+
+    findAthleteByName(name) {
+        return this.athletes.find((a) => a.name === name)
+            || (this.archivedAthletes || []).find((a) => a.name === name)
+            || null;
     },
 
     async boot() {
@@ -192,19 +215,20 @@ const LegionPilotTraining = {
             return;
         }
         this.coachProfile = { ...benchmark };
-        if (Array.isArray(this.coachProfile.rankMarks) && typeof LegionCore !== 'undefined') {
-            this.coachProfile.rankMarks = LegionCore.normalizeRankMarksValue(this.coachProfile.rankMarks);
-            if (ranks && typeof ranks === 'object') {
-                this.rankData = { ...this.rankData, ...ranks };
-            }
-            LegionCore.applyRankData(this.rankData, [this.coachProfile]);
-            const norm = LegionCore.normalizePersonName(this.coachProfile.name);
-            this.rankData[`${this.coachSlug}:${norm}`] = this.coachProfile.rankMarks;
-            this.rankData[norm] = this.coachProfile.rankMarks;
-            if (typeof LegionCore !== 'undefined') {
-                LegionCore.state.rankData = { ...this.rankData };
-            }
+        if (typeof LegionCore === 'undefined') {
+            return;
         }
+        // Нельзя подтягивать rankMarks тренера через lookup из rankData:
+        // после сохранения там ещё старые отметки, и чекбоксы «откатываются».
+        const normalized = LegionCore.normalizeRankMarksValue(this.coachProfile.rankMarks);
+        this.coachProfile.rankMarks = normalized || new Array(60).fill(0);
+        if (ranks && typeof ranks === 'object') {
+            this.rankData = { ...this.rankData, ...ranks };
+        }
+        const norm = LegionCore.normalizePersonName(this.coachProfile.name);
+        this.rankData[`${this.coachSlug}:${norm}`] = this.coachProfile.rankMarks;
+        this.rankData[norm] = this.coachProfile.rankMarks;
+        LegionCore.state.rankData = { ...this.rankData };
     },
 
     async loadAthletes() {
@@ -219,6 +243,7 @@ const LegionPilotTraining = {
             throw new Error(data.error || 'Не удалось загрузить группу');
         }
         this.athletes = Array.isArray(data.athletes) ? data.athletes : [];
+        this.archivedAthletes = Array.isArray(data.archivedAthletes) ? data.archivedAthletes : [];
         this.updatedAt = data.updatedAt || '';
         this.applyMetaFromApi(data);
         this.applyRankState(data);
@@ -274,7 +299,10 @@ const LegionPilotTraining = {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.apiCoachBody({ name, exercise, value: num }))
+                body: JSON.stringify(this.apiCoachBody(this.athleteRef(
+                    this.findAthleteByName(name) || { name },
+                    { exercise, value: num }
+                )))
             });
             const data = await resp.json();
             if (!resp.ok) {
@@ -363,7 +391,7 @@ const LegionPilotTraining = {
 
     updatePilotSearchStatus() {
         if (typeof LegionCore === 'undefined') return;
-        if (this.viewMode === 'import' || this.viewMode === 'history') {
+        if (this.viewMode === 'import' || this.viewMode === 'history' || this.viewMode === 'archive') {
             LegionCore.updateSearchStatus(0, { hidden: true });
             return;
         }
@@ -402,10 +430,10 @@ const LegionPilotTraining = {
         return this.getAthleteActiveLeague(name);
     },
 
-    countLeagueDone(name, league) {
+    countLeagueDone(name, league, source) {
         let n = 0;
         for (let slot = 0; slot < 20; slot++) {
-            if (this.isRankMarkDone(name, league, slot)) n++;
+            if (this.isRankMarkDone(name, league, slot, source)) n++;
         }
         return n;
     },
@@ -419,18 +447,24 @@ const LegionPilotTraining = {
         return parts[0] || name;
     },
 
-    isRankMarkDone(name, league, slot) {
+    isRankMarkDone(name, league, slot, source) {
         let marks = null;
-        const athlete = this.athletes.find((a) => a.name === name);
-        if (athlete && Array.isArray(athlete.rankMarks)) {
-            marks = athlete.rankMarks;
-        } else if (
-            this.coachProfile
+        const coachMatch = this.coachProfile
             && this.coachProfile.name === name
-            && Array.isArray(this.coachProfile.rankMarks)
-        ) {
+            && Array.isArray(this.coachProfile.rankMarks);
+        const athlete = this.athletes.find((a) => a.name === name);
+        const athleteMarks = athlete && Array.isArray(athlete.rankMarks) ? athlete.rankMarks : null;
+
+        if (source === 'coach') {
+            marks = coachMatch ? this.coachProfile.rankMarks : athleteMarks;
+        } else if (source === 'athlete') {
+            marks = athleteMarks || (coachMatch ? this.coachProfile.rankMarks : null);
+        } else if (coachMatch && !athleteMarks) {
             marks = this.coachProfile.rankMarks;
+        } else {
+            marks = athleteMarks || (coachMatch ? this.coachProfile.rankMarks : null);
         }
+
         if (!marks) return false;
         const idx = this.rankMarkIndex(league, slot);
         return !!marks[idx];
@@ -459,7 +493,10 @@ const LegionPilotTraining = {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.apiCoachBody({ name, markIndex: idx, value: next }))
+                body: JSON.stringify(this.apiCoachBody(this.athleteRef(
+                    this.findAthleteByName(name) || { name },
+                    { markIndex: idx, value: next }
+                )))
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || 'Ошибка');
@@ -590,13 +627,24 @@ const LegionPilotTraining = {
                 <input type="file" id="pilot-photo-file" accept="image/jpeg,image/png,image/webp" hidden>
             </div>
             <div id="pilot-profile-panel" class="pilot-profile-panel" hidden>
-                <p class="pilot-profile-note">Дата рождения нужна для анализа спортсмена. Возраст считается автоматически. Пустое поле — возраст не указан.</p>
+                <p class="pilot-profile-note">Дата рождения нужна для анализа спортсмена. Возраст считается автоматически. Пустое поле — возраст не указан. Здесь же можно изменить ФИО — результаты сохранятся.</p>
                 <div class="pilot-training-table-wrap pilot-profile-table-wrap">
                     <table class="pilot-training-table pilot-profile-table">
                         <thead>
-                            <tr><th>ФИО</th><th>Дата рождения</th><th>Возраст</th></tr>
+                            <tr><th>ФИО</th><th>Дата рождения</th><th>Возраст</th><th></th></tr>
                         </thead>
                         <tbody id="pilot-profile-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="pilot-archive-panel" class="pilot-archive-panel" hidden>
+                <p class="pilot-archive-note">Архивные спортсмены не участвуют в рейтинге и тренировке. Результаты и ранги сохраняются — можно вернуть в группу.</p>
+                <div class="pilot-training-table-wrap">
+                    <table class="pilot-training-table pilot-archive-table">
+                        <thead>
+                            <tr><th>ФИО</th><th>В архиве</th><th></th></tr>
+                        </thead>
+                        <tbody id="pilot-archive-tbody"></tbody>
                     </table>
                 </div>
             </div>
@@ -694,6 +742,7 @@ const LegionPilotTraining = {
                     </table>
                 </div>
             </div>
+            <div class="pilot-ranks-mobile" id="pilot-ranks-mobile" hidden></div>
         </div>`;
 
         const modeTabs = root.querySelector('#pilot-mode-tabs');
@@ -703,6 +752,7 @@ const LegionPilotTraining = {
             <button type="button" class="pilot-mode-tab" data-mode="coach">Тренер</button>
             <button type="button" class="pilot-mode-tab" data-mode="photos">Фото</button>
             <button type="button" class="pilot-mode-tab" data-mode="profile">Профиль</button>
+            <button type="button" class="pilot-mode-tab" data-mode="archive">Архив</button>
             <button type="button" class="pilot-mode-tab" data-mode="history">История</button>
             <button type="button" class="pilot-mode-tab" data-mode="import">Импорт</button>`;
         modeTabs.querySelectorAll('[data-mode]').forEach((btn) => {
@@ -812,6 +862,27 @@ const LegionPilotTraining = {
             });
         }
 
+        const ranksMobile = root.querySelector('#pilot-ranks-mobile');
+        if (ranksMobile) {
+            ranksMobile.addEventListener('click', (e) => {
+                const toggleBtn = e.target.closest('.pilot-rank-mobile-toggle');
+                if (toggleBtn) {
+                    const name = toggleBtn.getAttribute('data-name') || '';
+                    this.expandedRankName = this.expandedRankName === name ? null : name;
+                    this.renderRankMobileList();
+                    return;
+                }
+            });
+            ranksMobile.addEventListener('change', (e) => {
+                const input = e.target.closest('.pilot-rank-check');
+                if (!input) return;
+                const name = input.getAttribute('data-name');
+                const league = parseInt(input.getAttribute('data-league'), 10);
+                const slot = parseInt(input.getAttribute('data-slot'), 10);
+                this.toggleRankMark(name, league, slot, input.checked, input);
+            });
+        }
+
         root.querySelector('#pilot-logout-btn').addEventListener('click', async () => {
             await fetch(`/api/coach/logout.php?${this.apiCoachQuery()}`, { credentials: 'same-origin' });
             this.authenticated = false;
@@ -828,7 +899,16 @@ const LegionPilotTraining = {
                 if (!input) return;
                 const name = input.getAttribute('data-name');
                 if (!name) return;
-                this.saveBirthdate(name, input.value, input);
+                this.saveBirthdate(name, input.value, input, input.getAttribute('data-athlete-id'));
+            });
+            profileTbody.addEventListener('click', (e) => {
+                const renameBtn = e.target.closest('.pilot-rename-btn');
+                if (renameBtn) {
+                    this.renameAthlete(
+                        renameBtn.getAttribute('data-rename'),
+                        renameBtn.getAttribute('data-athlete-id')
+                    );
+                }
             });
         }
 
@@ -855,12 +935,6 @@ const LegionPilotTraining = {
         });
 
         tbody.addEventListener('click', (e) => {
-            const plusBtn = e.target.closest('.pilot-plus-btn');
-            if (plusBtn) {
-                e.preventDefault();
-                this.incrementResult(plusBtn);
-                return;
-            }
             const delBtn = e.target.closest('.pilot-history-delete');
             if (delBtn) {
                 e.preventDefault();
@@ -874,9 +948,27 @@ const LegionPilotTraining = {
                 this.updateViewMode();
                 return;
             }
-            const removeBtn = e.target.closest('.pilot-remove-btn');
-            if (removeBtn) {
-                this.removeAthlete(removeBtn.getAttribute('data-remove'));
+            const archiveBtn = e.target.closest('.pilot-archive-btn');
+            if (archiveBtn) {
+                this.archiveAthlete(
+                    archiveBtn.getAttribute('data-archive'),
+                    archiveBtn.getAttribute('data-athlete-id')
+                );
+                return;
+            }
+            const renameBtn = e.target.closest('.pilot-rename-btn');
+            if (renameBtn) {
+                this.renameAthlete(
+                    renameBtn.getAttribute('data-rename'),
+                    renameBtn.getAttribute('data-athlete-id')
+                );
+                return;
+            }
+            const toggleBtn = e.target.closest('.pilot-result-toggle');
+            if (toggleBtn) {
+                const name = toggleBtn.getAttribute('data-name') || '';
+                this.expandedResultName = this.expandedResultName === name ? null : name;
+                this.renderResultRows(this.currentExercise);
             }
         });
 
@@ -890,6 +982,19 @@ const LegionPilotTraining = {
                 LegionPilotPhotos.onImgError(img);
             }
         }, true);
+
+        const archivePanel = root.querySelector('#pilot-archive-panel');
+        if (archivePanel) {
+            archivePanel.addEventListener('click', (e) => {
+                const restoreBtn = e.target.closest('.pilot-restore-btn');
+                if (restoreBtn) {
+                    this.restoreAthlete(
+                        restoreBtn.getAttribute('data-restore'),
+                        restoreBtn.getAttribute('data-athlete-id')
+                    );
+                }
+            });
+        }
 
         const historyPanel = root.querySelector('#pilot-history-panel');
         if (historyPanel) {
@@ -928,11 +1033,13 @@ const LegionPilotTraining = {
         if (photoFile) {
             photoFile.addEventListener('change', () => {
                 const name = photoFile.getAttribute('data-athlete-name') || '';
+                const athleteId = photoFile.getAttribute('data-athlete-id') || '';
                 const file = photoFile.files && photoFile.files[0];
                 photoFile.value = '';
                 photoFile.removeAttribute('data-athlete-name');
+                photoFile.removeAttribute('data-athlete-id');
                 if (name && file) {
-                    this.uploadPhoto(name, file);
+                    this.uploadPhoto(name, file, athleteId);
                 }
             });
         }
@@ -943,16 +1050,21 @@ const LegionPilotTraining = {
                 const uploadBtn = e.target.closest('.pilot-photo-upload-btn');
                 if (uploadBtn) {
                     const athleteName = uploadBtn.getAttribute('data-name');
+                    const athleteId = uploadBtn.getAttribute('data-athlete-id') || '';
                     const input = document.getElementById('pilot-photo-file');
                     if (input && athleteName) {
                         input.setAttribute('data-athlete-name', athleteName);
+                        if (athleteId) input.setAttribute('data-athlete-id', athleteId);
                         input.click();
                     }
                     return;
                 }
                 const removeBtn = e.target.closest('.pilot-photo-remove-btn');
                 if (removeBtn) {
-                    this.removePhoto(removeBtn.getAttribute('data-name'));
+                    this.removePhoto(
+                        removeBtn.getAttribute('data-name'),
+                        removeBtn.getAttribute('data-athlete-id')
+                    );
                 }
             });
         }
@@ -991,11 +1103,13 @@ const LegionPilotTraining = {
         const historyPanel = document.getElementById('pilot-history-panel');
         const photosPanel = document.getElementById('pilot-photos-panel');
         const profilePanel = document.getElementById('pilot-profile-panel');
+        const archivePanel = document.getElementById('pilot-archive-panel');
         const importPanel = document.getElementById('pilot-import-panel');
         const coachPanel = document.getElementById('pilot-coach-panel');
         const addRow = document.getElementById('pilot-add-row');
         const tableWrap = document.getElementById('pilot-training-table-wrap');
         const ranksSplit = document.getElementById('pilot-ranks-split');
+        const ranksMobile = document.getElementById('pilot-ranks-mobile');
         const saveStatus = document.getElementById('pilot-save-status');
 
         document.querySelectorAll('.pilot-mode-tab').forEach((btn) => {
@@ -1007,16 +1121,31 @@ const LegionPilotTraining = {
         if (historyPanel) historyPanel.hidden = this.viewMode !== 'history';
         if (photosPanel) photosPanel.hidden = this.viewMode !== 'photos';
         if (profilePanel) profilePanel.hidden = this.viewMode !== 'profile';
+        if (archivePanel) archivePanel.hidden = this.viewMode !== 'archive';
         if (importPanel) importPanel.hidden = this.viewMode !== 'import';
         if (coachPanel) coachPanel.hidden = this.viewMode !== 'coach';
         if (addRow) addRow.hidden = !(this.viewMode === 'results' || this.viewMode === 'ranks');
         if (tableWrap) {
-            tableWrap.hidden = this.viewMode === 'import' || this.viewMode === 'photos' || this.viewMode === 'profile' || this.viewMode === 'coach' || this.viewMode === 'ranks';
+            tableWrap.hidden = this.viewMode === 'import'
+                || this.viewMode === 'photos'
+                || this.viewMode === 'profile'
+                || this.viewMode === 'coach'
+                || this.viewMode === 'ranks'
+                || this.viewMode === 'archive';
         }
         if (ranksSplit) {
             ranksSplit.hidden = this.viewMode !== 'ranks';
         }
-        if (saveStatus) saveStatus.hidden = this.viewMode === 'import' || this.viewMode === 'photos' || this.viewMode === 'profile' || this.viewMode === 'history';
+        if (ranksMobile) {
+            ranksMobile.hidden = this.viewMode !== 'ranks';
+        }
+        if (saveStatus) {
+            saveStatus.hidden = this.viewMode === 'import'
+                || this.viewMode === 'photos'
+                || this.viewMode === 'profile'
+                || this.viewMode === 'history'
+                || this.viewMode === 'archive';
+        }
 
         if (this.viewMode === 'results') {
             this.updateResultsView();
@@ -1026,6 +1155,8 @@ const LegionPilotTraining = {
             this.updatePhotosView();
         } else if (this.viewMode === 'profile') {
             this.updateProfileView();
+        } else if (this.viewMode === 'archive') {
+            this.updateArchiveView();
         } else if (this.viewMode === 'ranks') {
             this.updateRanksView();
         } else if (this.viewMode === 'history') {
@@ -1035,7 +1166,12 @@ const LegionPilotTraining = {
         }
 
         const searchWrap = document.getElementById('pilot-search-wrap');
-        if (searchWrap) searchWrap.hidden = this.viewMode === 'import' || this.viewMode === 'coach' || this.viewMode === 'history';
+        if (searchWrap) {
+            searchWrap.hidden = this.viewMode === 'import'
+                || this.viewMode === 'coach'
+                || this.viewMode === 'history'
+                || this.viewMode === 'archive';
+        }
 
         this.updatePilotSearchStatus();
     },
@@ -1125,7 +1261,7 @@ const LegionPilotTraining = {
         const columns = this.getLeagueColumnsMeta(league);
         const rank = this.getAthleteClubRank(coach.name);
         const meta = this.leagueMeta(league);
-        const done = this.countLeagueDone(coach.name, league);
+        const done = this.countLeagueDone(coach.name, league, 'coach');
         const nextOpen = Math.min(done, 19);
 
         namesThead.innerHTML = `<tr class="pilot-ranks-head-names"><th class="col-name">ФИО</th></tr>`;
@@ -1162,7 +1298,7 @@ const LegionPilotTraining = {
         row += `<td class="col-rank-progress">${done}/20</td>`;
 
         columns.forEach((col) => {
-            const isDone = this.isRankMarkDone(coach.name, league, col.slot);
+            const isDone = this.isRankMarkDone(coach.name, league, col.slot, 'coach');
             const isNext = !isDone && col.slot === nextOpen;
             const tip = `${col.rankName}: ${col.description || col.exercise}`;
             const shortEx = this.shortExerciseLabel(col.exercise);
@@ -1227,7 +1363,7 @@ const LegionPilotTraining = {
             if (!resp.ok) throw new Error(data.error || 'Ошибка');
 
             if (data.coachBenchmark) {
-                this.applyCoachProfileFromApi(data.coachBenchmark, this.rankData);
+                this.applyCoachProfileFromApi(data.coachBenchmark);
             } else if (this.coachProfile) {
                 this.coachProfile[exercise] = num;
             }
@@ -1266,9 +1402,16 @@ const LegionPilotTraining = {
             if (!resp.ok) throw new Error(data.error || 'Ошибка');
 
             if (data.coachBenchmark) {
-                this.applyCoachProfileFromApi(data.coachBenchmark, this.rankData);
-            } else if (Array.isArray(data.rankMarks) && this.coachProfile) {
-                this.coachProfile.rankMarks = LegionCore.normalizeRankMarksValue(data.rankMarks);
+                this.applyCoachProfileFromApi(data.coachBenchmark);
+            } else if (data.rankMarks != null && this.coachProfile) {
+                const marks = LegionCore.normalizeRankMarksValue(data.rankMarks);
+                if (marks) {
+                    this.coachProfile.rankMarks = marks;
+                    const norm = LegionCore.normalizePersonName(this.coachProfile.name);
+                    this.rankData[`${this.coachSlug}:${norm}`] = marks;
+                    this.rankData[norm] = marks;
+                    LegionCore.state.rankData = { ...this.rankData };
+                }
             }
 
             const leagueAfter = this.getCoachActiveLeague();
@@ -1308,16 +1451,15 @@ const LegionPilotTraining = {
         const thead = document.getElementById('pilot-training-thead');
         if (thead) {
             thead.innerHTML = `<tr>
-                <th class="col-name">ФИО</th>
-                <th class="col-was">Было</th>
-                <th class="col-input">Стало</th>
-                <th class="col-plus" title="Плюс 1"></th>
-                <th></th>
+                <th class="col-name">Спортсмен</th>
             </tr>`;
         }
 
         const table = document.querySelector('.pilot-training-table');
-        if (table) table.classList.remove('pilot-ranks-table');
+        if (table) {
+            table.classList.remove('pilot-ranks-table');
+            table.classList.add('pilot-results-compact');
+        }
 
         this.renderResultRows(ex);
     },
@@ -1408,14 +1550,95 @@ const LegionPilotTraining = {
         }
 
         this.renderRankRows();
+        this.renderRankMobileList();
+    },
+
+    renderRankMobileList() {
+        const root = document.getElementById('pilot-ranks-mobile');
+        if (!root) return;
+
+        const list = this.athletesForRankView();
+        if (!list.length) {
+            const q = typeof LegionCore !== 'undefined' ? LegionCore.state.searchQuery : '';
+            const msg = q ? 'Никого не найдено по запросу.' : this.emptyRankMessage();
+            root.innerHTML = `<p class="pilot-rank-empty">${this.esc(msg)}</p>`;
+            return;
+        }
+
+        const isAuto = this.rankViewLeague === 'auto';
+        let html = '';
+        list.forEach((a) => {
+            const league = this.getLeagueForAthleteRow(a.name);
+            const columns = this.getLeagueColumnsMeta(league);
+            const rank = this.getAthleteClubRank(a.name);
+            const meta = this.leagueMeta(league);
+            const done = this.countLeagueDone(a.name, league, 'athlete');
+            const expanded = this.expandedRankName === a.name;
+            const left = Math.max(0, 20 - done);
+            const title = rank && rank.rankName ? rank.rankName : '—';
+            const rowClass = `pilot-rank-mobile-card${done >= 20 ? ' is-complete' : ''}${expanded ? ' is-expanded' : ''}`;
+
+            html += `<article class="${rowClass}" data-athlete="${this.escAttr(a.name)}">`;
+            html += `<button type="button" class="pilot-rank-mobile-toggle" data-name="${this.escAttr(a.name)}"
+                aria-expanded="${expanded ? 'true' : 'false'}">
+                <span class="pilot-rank-mobile-main">
+                    <span class="pilot-rank-mobile-name">${this.esc(a.name)}</span>
+                    <span class="pilot-rank-mobile-meta">`;
+            if (isAuto) {
+                html += `<span class="pilot-rank-mobile-league">${this.esc(meta.label)}</span>`;
+            }
+            html += `<span class="pilot-rank-mobile-title">${this.esc(title)}</span>
+                        <span class="pilot-rank-mobile-progress">${done}/20</span>
+                        <span class="pilot-rank-mobile-left">${left > 0 ? 'осталось ' + left : 'лига сдана'}</span>
+                    </span>
+                </span>
+                <span class="pilot-rank-mobile-chevron" aria-hidden="true"></span>
+            </button>`;
+
+            if (expanded) {
+                html += '<ul class="pilot-rank-mobile-list">';
+                columns.forEach((col) => {
+                    const isDone = this.isRankMarkDone(a.name, league, col.slot, 'athlete');
+                    const tip = col.description || col.exercise;
+                    html += `<li class="pilot-rank-mobile-item${isDone ? ' is-done' : ''}">
+                        <label class="pilot-rank-mobile-label">
+                            <input type="checkbox" class="pilot-rank-check"
+                                data-name="${this.escAttr(a.name)}"
+                                data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}"
+                                data-league="${league}" data-slot="${col.slot}"
+                                ${isDone ? ' checked' : ''}
+                                aria-label="${this.escAttr(a.name + ' — ' + col.exercise)}">
+                            <span class="pilot-rank-check-ui" aria-hidden="true"></span>
+                            <span class="pilot-rank-mobile-item-text">
+                                <span class="pilot-rank-mobile-item-ex">${this.esc(col.exercise)}</span>
+                                ${tip && tip !== col.exercise
+                                    ? `<span class="pilot-rank-mobile-item-desc">${this.esc(tip)}</span>`
+                                    : ''}
+                            </span>
+                        </label>
+                    </li>`;
+                });
+                html += '</ul>';
+            }
+            html += '</article>';
+        });
+        root.innerHTML = html;
     },
 
     getHistoryForAthlete(name) {
+        const athlete = this.findAthleteByName(name);
+        const athleteId = athlete && athlete.id ? Number(athlete.id) : 0;
         const norm = typeof LegionCore !== 'undefined'
             ? LegionCore.normalizePersonName(name)
             : name;
         return this.history
             .filter((e) => {
+                if (athleteId > 0 && e.athleteId && Number(e.athleteId) === athleteId) {
+                    return true;
+                }
+                if (e.coachSlug && e.coachSlug !== this.coachSlug) {
+                    return false;
+                }
                 const en = typeof LegionCore !== 'undefined'
                     ? LegionCore.normalizePersonName(e.name)
                     : e.name;
@@ -1531,7 +1754,7 @@ const LegionPilotTraining = {
 
         if (!athletes.length) {
             const q = typeof LegionCore !== 'undefined' ? LegionCore.state.searchQuery : '';
-            tbody.innerHTML = `<tr><td colspan="5" class="pilot-rank-empty">${
+            tbody.innerHTML = `<tr><td class="pilot-rank-empty">${
                 q ? 'Никого не найдено. Попробуйте другое имя.' : 'В группе пока нет спортсменов.'
             }</td></tr>`;
             return;
@@ -1541,29 +1764,28 @@ const LegionPilotTraining = {
             const was = this.baseline[a.name] ? (this.baseline[a.name][ex] || 0) : 0;
             const now = Number(a[ex]) || 0;
             const displayVal = now > 0 ? now : '';
+            const expanded = this.expandedResultName === a.name;
 
-            html += `<tr data-athlete="${this.escAttr(a.name)}">
-                <td class="col-name">
-                    <span class="pilot-row-name">
-                        ${this.photoImgMarkup(a, this.updatedAt, 'pilot-row-photo')}
-                        <span>${this.esc(a.name)}</span>
-                    </span>
-                </td>
-                <td class="col-was">${was || '—'}</td>
-                <td class="col-input">
-                    <input type="number" inputmode="decimal" enterkeyhint="next"
-                        class="pilot-result-input" min="0" step="${step}"
-                        value="${displayVal}" data-idx="${idx}" data-name="${this.escAttr(a.name)}"
-                        data-exercise="${ex}" data-saved="${now}"
-                        aria-label="${this.escAttr(a.name)} ${this.escAttr(exLabel)}">
-                </td>
-                <td class="col-plus">
-                    <button type="button" class="pilot-plus-btn" data-name="${this.escAttr(a.name)}"
-                        data-exercise="${ex}" title="Плюс 1" aria-label="Добавить 1">+</button>
-                </td>
-                <td class="col-actions">
-                    <button type="button" class="pilot-btn pilot-history-btn" data-name="${this.escAttr(a.name)}" title="История">📋</button>
-                    <button type="button" class="pilot-btn pilot-btn--danger pilot-remove-btn" data-remove="${this.escAttr(a.name)}">✕</button>
+            html += `<tr data-athlete="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}" class="pilot-result-row${expanded ? ' is-expanded' : ''}">
+                <td class="pilot-result-cell">
+                    <div class="pilot-result-main">
+                        <button type="button" class="pilot-result-toggle" data-name="${this.escAttr(a.name)}"
+                            aria-expanded="${expanded ? 'true' : 'false'}" title="Действия">
+                            <span class="pilot-result-name">${this.esc(a.name)}</span>
+                            <span class="pilot-result-was">было ${was || '—'}</span>
+                        </button>
+                        <input type="number" inputmode="decimal" enterkeyhint="next"
+                            class="pilot-result-input" min="0" step="${step}"
+                            value="${displayVal}" data-idx="${idx}" data-name="${this.escAttr(a.name)}"
+                            data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}"
+                            data-exercise="${ex}" data-saved="${now}"
+                            aria-label="${this.escAttr(a.name)} ${this.escAttr(exLabel)}">
+                    </div>
+                    <div class="pilot-result-actions">
+                        <button type="button" class="pilot-btn pilot-history-btn" data-name="${this.escAttr(a.name)}" title="История">История</button>
+                        <button type="button" class="pilot-btn pilot-rename-btn" data-rename="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}" title="Изменить ФИО">ФИО</button>
+                        <button type="button" class="pilot-btn pilot-btn--danger pilot-archive-btn" data-archive="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}">В архив</button>
+                    </div>
                 </td>
             </tr>`;
         });
@@ -1595,10 +1817,10 @@ const LegionPilotTraining = {
             const columns = this.getLeagueColumnsMeta(league);
             const rank = this.getAthleteClubRank(a.name);
             const meta = this.leagueMeta(league);
-            const done = this.countLeagueDone(a.name, league);
+            const done = this.countLeagueDone(a.name, league, 'athlete');
             const nextOpen = Math.min(done, 19);
             const rowClass = `pilot-rank-row${done >= 20 ? ' pilot-rank-row--complete' : ''}`;
-            const attr = `data-athlete="${this.escAttr(a.name)}" data-league="${league}"`;
+            const attr = `data-athlete="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}" data-league="${league}"`;
 
             namesHtml += `<tr ${attr} class="${rowClass}">`;
             namesHtml += `<td class="col-name" title="${this.escAttr(a.name)}">${this.esc(a.name)}</td>`;
@@ -1612,7 +1834,7 @@ const LegionPilotTraining = {
             dataHtml += `<td class="col-rank-progress">${done}/20</td>`;
 
             columns.forEach((col) => {
-                const isDone = this.isRankMarkDone(a.name, league, col.slot);
+                const isDone = this.isRankMarkDone(a.name, league, col.slot, 'athlete');
                 const isNext = !isDone && col.slot === nextOpen;
                 const tip = `${col.rankName}: ${col.description || col.exercise}`;
                 const shortEx = this.shortExerciseLabel(col.exercise);
@@ -1622,7 +1844,7 @@ const LegionPilotTraining = {
                     dataHtml += `<span class="pilot-rank-cell-ex">${this.esc(shortEx)}</span>`;
                 }
                 dataHtml += `<input type="checkbox" class="pilot-rank-check"`;
-                dataHtml += ` data-name="${this.escAttr(a.name)}" data-league="${league}" data-slot="${col.slot}"`;
+                dataHtml += ` data-name="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}" data-league="${league}" data-slot="${col.slot}"`;
                 dataHtml += isDone ? ' checked' : '';
                 dataHtml += ` aria-label="${this.escAttr(a.name + ' — ' + col.exercise)}">`;
                 dataHtml += `<span class="pilot-rank-check-ui" aria-hidden="true"></span>`;
@@ -1711,44 +1933,114 @@ const LegionPilotTraining = {
         }
     },
 
-    async removeAthlete(name) {
-        if (!confirm(`Удалить «${name}» из пилотной группы?`)) return;
+    async archiveAthlete(name, athleteId) {
+        if (!name && !athleteId) return;
+        const label = name || ('#' + athleteId);
+        if (!confirm(`Отправить «${label}» в архив?\nРезультаты и ранги сохранятся — можно вернуть позже.`)) return;
         try {
-            const resp = await fetch('/api/coach/remove_athlete.php', {
+            const resp = await fetch('/api/coach/archive_athlete.php', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.apiCoachBody({ name }))
+                body: JSON.stringify(this.apiCoachBody(this.athleteRef(
+                    this.findAthleteByName(name) || { name, id: athleteId ? Number(athleteId) : 0 }
+                )))
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || 'Ошибка');
             await this.loadAthletes();
             this.focusIdx = null;
+            this.expandedResultName = null;
             this.updateViewMode();
-            this.setStatus('Удалено', 'ok');
+            this.setStatus('В архиве', 'ok');
         } catch (err) {
             this.setStatus(err.message, 'error');
         }
     },
 
-    incrementResult(btn) {
-        const name = btn.getAttribute('data-name');
-        const exercise = btn.getAttribute('data-exercise');
-        if (!name || !exercise) return;
+    async restoreAthlete(name, athleteId) {
+        if (!name && !athleteId) return;
+        try {
+            const resp = await fetch('/api/coach/restore_athlete.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.apiCoachBody(this.athleteRef(
+                    (this.archivedAthletes || []).find((a) => a.name === name || String(a.id) === String(athleteId))
+                    || { name, id: athleteId ? Number(athleteId) : 0 }
+                )))
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Ошибка');
+            await this.loadAthletes();
+            this.updateViewMode();
+            this.setStatus('Восстановлен из архива', 'ok');
+        } catch (err) {
+            this.setStatus(err.message, 'error');
+        }
+    },
 
-        const row = btn.closest('tr');
-        const input = row
-            ? row.querySelector('.pilot-result-input')
-            : document.querySelector(
-                `.pilot-result-input[data-name="${CSS.escape(name)}"][data-exercise="${exercise}"]`
-            );
-        if (!input) return;
+    async renameAthlete(name, athleteId) {
+        if (!name && !athleteId) return;
+        const current = name || '';
+        const next = window.prompt('Новое ФИО (фамилия и имя):', current);
+        if (next === null) return;
+        const newName = String(next).trim();
+        if (!newName || newName === current) return;
+        this.setStatus('Переименование…', 'saving');
+        try {
+            const resp = await fetch('/api/coach/rename_athlete.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.apiCoachBody(this.athleteRef(
+                    this.findAthleteByName(name) || { name, id: athleteId ? Number(athleteId) : 0 },
+                    { newName }
+                )))
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Ошибка');
+            if (this.expandedResultName === name) {
+                this.expandedResultName = data.name || newName;
+            }
+            if (this.historyAthlete === name) {
+                this.historyAthlete = data.name || newName;
+            }
+            await this.loadAthletes();
+            this.updateViewMode();
+            this.setStatus('ФИО обновлено', 'ok');
+        } catch (err) {
+            this.setStatus(err.message, 'error');
+        }
+    },
 
-        const raw = String(input.value).trim().replace(',', '.');
-        const current = raw === '' ? 0 : parseFloat(raw);
-        const next = (Number.isNaN(current) ? 0 : current) + 1;
-        input.value = String(next);
-        this.flushResultInput(input);
+    updateArchiveView() {
+        const title = document.getElementById('pilot-training-title');
+        if (title) title.textContent = 'Архив';
+
+        const upd = document.getElementById('pilot-training-updated');
+        if (upd) upd.textContent = this.updatedAt ? 'Обновлено: ' + this.updatedAt : '';
+
+        const tbody = document.getElementById('pilot-archive-tbody');
+        if (!tbody) return;
+
+        const list = this.archivedAthletes || [];
+        if (!list.length) {
+            tbody.innerHTML = '<tr><td colspan="3" class="pilot-rank-empty">Архив пуст.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        list.forEach((a) => {
+            html += `<tr>
+                <td class="col-name">${this.esc(a.name)}</td>
+                <td>${a.archivedAt ? this.esc(a.archivedAt) : '—'}</td>
+                <td class="col-actions">
+                    <button type="button" class="pilot-btn pilot-restore-btn" data-restore="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}">Вернуть</button>
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
     },
 
     photoUrl(athlete, bust) {
@@ -1807,9 +2099,9 @@ const LegionPilotTraining = {
                 <h3 class="pilot-photo-name">${this.esc(a.name)}</h3>
                 ${badge}
                 <div class="pilot-photo-actions">
-                    <button type="button" class="pilot-btn pilot-btn--primary pilot-photo-upload-btn" data-name="${this.escAttr(a.name)}">Загрузить</button>`;
+                    <button type="button" class="pilot-btn pilot-btn--primary pilot-photo-upload-btn" data-name="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}">Загрузить</button>`;
             if (a.hasPhoto) {
-                html += `<button type="button" class="pilot-btn pilot-photo-remove-btn" data-name="${this.escAttr(a.name)}">Убрать фото</button>`;
+                html += `<button type="button" class="pilot-btn pilot-photo-remove-btn" data-name="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}">Убрать фото</button>`;
             }
             html += `</div></article>`;
         });
@@ -1850,13 +2142,13 @@ const LegionPilotTraining = {
         if (!tbody) return;
 
         if (!this.athletes.length) {
-            tbody.innerHTML = '<tr><td colspan="3" class="note">В группе пока нет спортсменов.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="note">В группе пока нет спортсменов.</td></tr>';
             return;
         }
 
         const athletes = this.filterAthletes(this.athletes);
         if (!athletes.length) {
-            tbody.innerHTML = '<tr><td colspan="3" class="note">Никого не найдено. Попробуйте другое имя.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="note">Никого не найдено. Попробуйте другое имя.</td></tr>';
             return;
         }
 
@@ -1865,23 +2157,29 @@ const LegionPilotTraining = {
             const birthVal = a.birthdate || '';
             html += `<tr>
                 <td>${this.esc(a.name)}</td>
-                <td><input type="date" class="pilot-birthdate-input" data-name="${this.escAttr(a.name)}" value="${this.escAttr(birthVal)}"></td>
+                <td><input type="date" class="pilot-birthdate-input" data-name="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}" value="${this.escAttr(birthVal)}"></td>
                 <td class="pilot-age-cell" data-name="${this.escAttr(a.name)}">${this.esc(this.formatAgeLabel(a))}</td>
+                <td class="col-actions">
+                    <button type="button" class="pilot-btn pilot-rename-btn" data-rename="${this.escAttr(a.name)}" data-athlete-id="${a.id ? this.escAttr(String(a.id)) : ''}">Изменить ФИО</button>
+                </td>
             </tr>`;
         });
         tbody.innerHTML = html;
     },
 
-    async saveBirthdate(name, birthdate, inputEl) {
+    async saveBirthdate(name, birthdate, inputEl, athleteId) {
         this.setStatus('Сохранение…', 'saving');
-        const athlete = this.athletes.find((a) => a.name === name);
+        const athlete = this.findAthleteByName(name);
         const prev = athlete ? (athlete.birthdate || '') : '';
         try {
             const resp = await fetch('/api/coach/update_birthdate.php', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.apiCoachBody({ name, birthdate }))
+                body: JSON.stringify(this.apiCoachBody(this.athleteRef(
+                    athlete || { name, id: athleteId ? Number(athleteId) : 0 },
+                    { birthdate }
+                )))
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || 'Ошибка');
@@ -1908,13 +2206,15 @@ const LegionPilotTraining = {
         }
     },
 
-    async uploadPhoto(name, file) {
+    async uploadPhoto(name, file, athleteId) {
         if (!name || !file) return;
         this.setStatus('Загрузка фото…', 'saving');
         const fd = new FormData();
         fd.append('name', name);
         fd.append('photo', file);
         fd.append('coach', this.coachSlug);
+        const id = athleteId || (this.findAthleteByName(name) || {}).id;
+        if (id) fd.append('athleteId', String(id));
 
         try {
             const resp = await fetch('/api/coach/upload_photo.php', {
@@ -1925,7 +2225,7 @@ const LegionPilotTraining = {
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || 'Ошибка загрузки');
 
-            const athlete = this.athletes.find((a) => a.name === name);
+            const athlete = this.findAthleteByName(name);
             if (athlete) {
                 athlete.photo = data.photo;
                 athlete.hasPhoto = !!data.hasPhoto;
@@ -1939,7 +2239,7 @@ const LegionPilotTraining = {
         }
     },
 
-    async removePhoto(name) {
+    async removePhoto(name, athleteId) {
         if (!name) return;
         if (!confirm(`Убрать загруженное фото у «${name}»? Будет показан спортивный персонаж.`)) return;
 
@@ -1949,12 +2249,14 @@ const LegionPilotTraining = {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.apiCoachBody({ name }))
+                body: JSON.stringify(this.apiCoachBody(this.athleteRef(
+                    this.findAthleteByName(name) || { name, id: athleteId ? Number(athleteId) : 0 }
+                )))
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || 'Ошибка');
 
-            const athlete = this.athletes.find((a) => a.name === name);
+            const athlete = this.findAthleteByName(name);
             if (athlete) {
                 athlete.photo = data.photo;
                 athlete.hasPhoto = false;

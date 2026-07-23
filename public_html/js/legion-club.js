@@ -30,7 +30,7 @@ const LegionClubPage = {
     bindGlobals() {
         const self = this;
         window.switchTab = (tab) => self.switchTab(tab);
-        window.openAthleteModal = (name) => self.openAthleteModal(name);
+        window.openAthleteModal = (name, coachSlug) => self.openAthleteModal(name, coachSlug);
     },
 
     async onLoad() {
@@ -152,14 +152,14 @@ const LegionClubPage = {
     getAthleteNameDisplay(name, options) {
         const opts = options || {};
         if (opts.hideTop25) {
-            return LegionCore.formatAthleteLink(name);
+            return LegionCore.formatAthleteLink(name, opts.athlete && opts.athlete.coachSlug);
         }
         const athlete = opts.athlete
             || (LegionCore.state.athletesData || []).find((a) => a.name === name);
         const badge = athlete && LegionCore.isClubTop25(athlete)
             ? LegionCore.formatTop25Icon()
             : '';
-        return `${LegionCore.formatAthleteLink(name)}${badge}`;
+        return `${LegionCore.formatAthleteLink(name, athlete && athlete.coachSlug)}${badge}`;
     },
 
     buildRatingTableRows(athletes, options) {
@@ -260,13 +260,15 @@ const LegionClubPage = {
         return LegionUI.renderHallOfFame(records, recentBreaks);
     },
 
-    openAthleteModal(name) {
+    openAthleteModal(name, coachSlug) {
         const modal = document.getElementById('athleteModal');
         if (!modal) {
             console.error('Окно спортсмена не найдено — залейте modals-club.php на сервер.');
             return;
         }
-        const athlete = LegionCore.state.athletesData.find(a => a.name === name);
+        const athlete = (LegionCore.state.athletesData || []).find((a) =>
+            a.name === name && (!coachSlug || a.coachSlug === coachSlug)
+        ) || (LegionCore.state.athletesData || []).find((a) => a.name === name);
         if (!athlete) return;
 
         LegionCore.setOpenAthlete(name);

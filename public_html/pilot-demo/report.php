@@ -2,8 +2,9 @@
 /**
  * Закрытый отчёт пилотной группы (coach=pilot-demo по умолчанию).
  *
- * /pilot-demo/report.php?token=...&name=Фамилия%20Имя
- * /pilot-demo/report.php?token=...&name=...&ai=1
+ * /pilot-demo/report.php?token=...&id=42
+ * /pilot-demo/report.php?token=...&name=Фамилия%20Имя  (старый формат)
+ * /pilot-demo/report.php?token=...&id=42&ai=1
  */
 require_once dirname(__DIR__) . '/legion-version.php';
 require_once dirname(__DIR__) . '/api/report_lib.php';

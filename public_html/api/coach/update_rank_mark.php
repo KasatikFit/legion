@@ -28,11 +28,12 @@ try {
 legion_coach_require_auth_json($coach);
 
 $name = isset($payload['name']) ? (string) $payload['name'] : '';
+$athleteId = legion_pilot_payload_athlete_id($payload);
 $markIndex = isset($payload['markIndex']) ? $payload['markIndex'] : null;
 $value = isset($payload['value']) ? $payload['value'] : 0;
 
 try {
-    $data = legion_pilot_update_rank_mark($name, $markIndex, $value, $coach);
+    $data = legion_pilot_update_rank_mark($name, $markIndex, $value, $coach, $athleteId);
     echo json_encode(array(
         'success' => true,
         'updatedAt' => $data['updatedAt'],

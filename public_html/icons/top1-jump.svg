@@ -1,17 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label=""-1 ?@K6>:">
-  <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f5d76e"/>
-      <stop offset="100%" stop-color="#b8860b"/>
-    </linearGradient>
-  </defs>
-  <circle cx="32" cy="32" r="28" fill="#14141a" stroke="url(#g)" stroke-width="2.5"/>
-  <line x1="10" y1="48" x2="54" y2="48" stroke="#555" stroke-width="2"/>
-  <circle cx="28" cy="30" r="5" fill="#fff"/>
-  <path d="M28 35 V42" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-  <path d="M22 42 H34" stroke="url(#g)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M34 36 L48 24" stroke="url(#g)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M44 18 L48 24 L42 26" fill="#e31837"/>
-  <circle cx="48" cy="12" r="8" fill="url(#g)" stroke="#fff" stroke-width="1"/>
-  <text x="48" y="16" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="10" font-weight="bold" fill="#1a1a1a">1</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="@K6>: B8B0=0"><defs><linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b8"/><stop offset=".55" stop-color="#e1ab33"/><stop offset="1" stop-color="#8b5a10"/></linearGradient><radialGradient id="face" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="#fff8dd"/><stop offset="45%" stop-color="#f2c14d"/><stop offset="100%" stop-color="#b87413"/></radialGradient></defs><circle cx="32" cy="32" r="28" fill="#0e1520" stroke="url(#rim)" stroke-width="2.5"/><circle cx="32" cy="32" r="20" fill="url(#face)"/><path d="M14 11 25 18 22 26 12 20Z" fill="#b71c3a"/><path d="M50 11 39 18 42 26 52 20Z" fill="#b71c3a"/><path d="M14 44c8 0 12-4 17-9" fill="none" stroke="#132030" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="22" r="4" fill="#132030"/><path d="M32 26 28 35M29 30 20 34M32 29 41 25M28 35 19 42M28 35 39 41" fill="none" stroke="#132030" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="14" r="8" fill="#101722" stroke="url(#rim)" stroke-width="1.5"/><text x="50" y="18" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="9" fill="#ffd76b">1</text></svg>

@@ -17,9 +17,29 @@ const LegionUI = {
 
     getAchievementRarity(id) {
         if (id === 'top1' || id === 'record_club' || id === 'rank_gold_done') return 'legendary';
-        if (id.startsWith('ex_top1_') || id === 'beat_coach_3' || id === 'rank_silver_done') return 'epic';
-        if (id === 'top3' || id === 'top25' || id === 'beat_coach_1' || id === 'rank_bronze_done') return 'rare';
+        if (id.startsWith('ex_top1_') || id === 'beat_coach_3' || id === 'rank_silver_done' || id === 'surge_5') {
+            return 'epic';
+        }
+        if (id === 'top3' || id === 'top25' || id === 'beat_coach_1' || id === 'rank_bronze_done' || id === 'warrior_six') {
+            return 'rare';
+        }
         return 'common';
+    },
+
+    rarityRank(id) {
+        const map = { legendary: 0, epic: 1, rare: 2, common: 3 };
+        return map[this.getAchievementRarity(id)] ?? 3;
+    },
+
+    isAchievementNew(dateStr, days) {
+        if (!dateStr) return false;
+        const windowDays = days == null ? 2 : days;
+        const iso = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!iso) return false;
+        const earned = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T12:00:00`);
+        if (Number.isNaN(earned.getTime())) return false;
+        const ageMs = Date.now() - earned.getTime();
+        return ageMs >= 0 && ageMs <= windowDays * 86400000;
     },
 
     stripHtml(html) {
@@ -35,6 +55,9 @@ const LegionUI = {
         if (html.includes('🥇')) return '<span class="ach-emoji">🥇</span>';
         if (html.includes('🌟')) return '<span class="ach-emoji">🌟</span>';
         if (html.includes('💪')) return '<span class="ach-emoji">💪</span>';
+        if (html.includes('📈')) return '<span class="ach-emoji">📈</span>';
+        if (html.includes('🔥')) return '<span class="ach-emoji">🔥</span>';
+        if (html.includes('🛡️')) return '<span class="ach-emoji">🛡️</span>';
         return '<span class="ach-emoji">🏅</span>';
     },
 
@@ -58,35 +81,75 @@ const LegionUI = {
             const icon = String(achievement.icon).replace(/\.png$/i, '.svg');
             return `<span class="ach-icon-wrap"><img src="/icons/${icon}" alt="" class="ach-icon-img" loading="lazy" onerror="this.parentElement.outerHTML='<span class=\\'ach-emoji\\'>${emoji}</span>'"></span>`;
         }
-        return this.extractIconHtml(achievement.text);
+        if (achievement.text) return this.extractIconHtml(achievement.text);
+        return `<span class="ach-emoji">${emoji}</span>`;
     },
 
-    renderAchievementCard(achievement) {
+    maybeShineClass(achievement) {
+        if (!achievement.active || this.getAchievementRarity(achievement.id) !== 'legendary') return '';
+        try {
+            const key = `legion-ach-shine-${achievement.id}`;
+            if (sessionStorage.getItem(key)) return '';
+            sessionStorage.setItem(key, '1');
+            return ' ach-card--shine';
+        } catch (e) {
+            return ' ach-card--shine';
+        }
+    },
+
+    renderAchievementCard(achievement, options) {
+        const opts = options || {};
         const rarity = this.getAchievementRarity(achievement.id);
         const earned = !!achievement.active;
-        const cls = earned
+        const showcase = !!opts.showcase;
+        const isNew = earned && this.isAchievementNew(achievement.date);
+        const isStatusTop1 = achievement.id === 'top1';
+        const isStatusRecord = achievement.id === 'record_club';
+        let cls = earned
             ? `ach-card ach-card--earned active ach-${rarity}`
             : `ach-card ach-card--locked locked ach-${rarity}`;
+        if (showcase) cls += ' ach-card--showcase';
+        if (earned) cls += this.maybeShineClass(achievement);
+        if (isNew) cls += ' ach-card--new';
+        if (isStatusTop1) cls += ' ach-card--status-top1';
+        if (isStatusRecord) cls += ' ach-card--status-record';
+
         const title = LegionCore.escapeHtml(this.getAchievementTitle(achievement));
         const desc = LegionCore.escapeHtml(achievement.desc || '');
         const dateLabel = earned ? this.formatAchievementDate(achievement.date) : '';
-        const lockHtml = earned ? '' : '<span class="ach-card-lock" aria-hidden="true">🔒</span>';
+        const detail = earned && achievement.detail
+            ? LegionCore.escapeHtml(achievement.detail)
+            : '';
+        const newBadge = isNew ? '<span class="ach-card-new">новое</span>' : '';
+        let statusRibbon = '';
+        if (isStatusTop1) {
+            statusRibbon = '<span class="ach-card-ribbon ach-card-ribbon--top1">Император</span>';
+        } else if (isStatusRecord) {
+            statusRibbon = '<span class="ach-card-ribbon ach-card-ribbon--record">Зал славы</span>';
+        }
+        const metaLine = earned
+            ? `<div class="ach-card-meta">${detail ? `<span class="ach-card-detail">${detail}</span>` : ''}${dateLabel ? `<span class="ach-card-date">${dateLabel}</span>` : ''}</div>`
+            : '<div class="ach-card-meta ach-card-meta--locked">ещё в пути</div>';
 
         return `<div class="${cls}" title="${desc}">
-            ${lockHtml}
+            <span class="ach-card-texture" aria-hidden="true"></span>
+            ${statusRibbon}
+            ${newBadge}
             <div class="ach-card-medal ach-card-medal--${rarity}">
                 <div class="ach-card-icon">${this.renderAchievementIcon(achievement)}</div>
             </div>
             <div class="ach-card-title">${title}</div>
             <div class="ach-card-desc">${desc}</div>
-            ${earned ? `<div class="ach-card-date">${dateLabel}</div>` : '<div class="ach-card-date ach-card-date--locked">Не получено</div>'}
+            ${metaLine}
         </div>`;
     },
 
-    renderAchievementCardsGrid(items) {
+    renderAchievementCardsGrid(items, options) {
         if (!items.length) return '';
-        let html = '<div class="ach-grid">';
-        items.forEach((a) => { html += this.renderAchievementCard(a); });
+        const opts = options || {};
+        const gridClass = opts.showcase ? 'ach-grid ach-grid--showcase' : 'ach-grid';
+        let html = `<div class="${gridClass}">`;
+        items.forEach((a) => { html += this.renderAchievementCard(a, opts); });
         html += '</div>';
         return html;
     },
@@ -100,7 +163,7 @@ const LegionUI = {
             const title = LegionCore.escapeHtml(this.getAchievementTitle(a));
             const desc = LegionCore.escapeHtml(a.desc || '');
             html += `<div class="ach-locked-teaser-item">
-                <span class="ach-locked-teaser-icon">${this.renderAchievementIcon(a)}</span>
+                <span class="ach-locked-teaser-icon ach-locked-teaser-icon--fog">${this.renderAchievementIcon(a)}</span>
                 <span class="ach-locked-teaser-body">
                     <span class="ach-locked-teaser-title">${title}</span>
                     <span class="ach-locked-teaser-desc">${desc}</span>
@@ -108,6 +171,31 @@ const LegionUI = {
             </div>`;
         });
         html += '</div></details>';
+        return html;
+    },
+
+    sortAchievementsForShowcase(earned) {
+        return [...earned].sort((a, b) => {
+            const rr = this.rarityRank(a.id) - this.rarityRank(b.id);
+            if (rr !== 0) return rr;
+            return String(b.date || '').localeCompare(String(a.date || ''));
+        });
+    },
+
+    renderAchievementShowcase(achievements) {
+        const earned = achievements.filter((a) => a.active);
+        const locked = achievements.filter((a) => !a.active);
+        const sortedEarned = this.sortAchievementsForShowcase(earned);
+
+        let html = '';
+        if (!earned.length) {
+            html += '<p class="ach-empty">Пока нет достижений — тренируйся и поднимайся в рейтинге!</p>';
+        } else {
+            html += this.renderAchievementCardsGrid(sortedEarned, { showcase: true });
+        }
+        if (locked.length) {
+            html += this.renderAchievementCardsGrid(locked);
+        }
         return html;
     },
 
@@ -120,7 +208,7 @@ const LegionUI = {
 
         let html = '';
         if (showHeading) {
-            const countLabel = variant === 'modal'
+            const countLabel = variant === 'modal' || variant === 'showcase'
                 ? `${earned.length}`
                 : `${earned.length} / ${achievements.length}`;
             html += `<h3 class="section-title">Достижения <span class="ach-count">${countLabel}</span></h3>`;
@@ -130,9 +218,21 @@ const LegionUI = {
             if (!earned.length) {
                 html += '<p class="ach-empty">Пока нет достижений — тренируйся и поднимайся в рейтинге!</p>';
             } else {
-                html += this.renderAchievementCardsGrid(earned);
+                const sorted = this.sortAchievementsForShowcase(earned);
+                html += this.renderAchievementCardsGrid(sorted.slice(0, 6));
+                if (sorted.length > 6) {
+                    html += `<details class="ach-more-earned">
+                        <summary class="ach-more-earned-summary">Ещё <span class="ach-count">${sorted.length - 6}</span></summary>
+                        ${this.renderAchievementCardsGrid(sorted.slice(6))}
+                    </details>`;
+                }
             }
             html += this.renderAchievementLockedTeaser(locked);
+            return html;
+        }
+
+        if (variant === 'showcase') {
+            html += this.renderAchievementShowcase(achievements);
             return html;
         }
 
@@ -149,7 +249,70 @@ const LegionUI = {
             html += '</div>';
         });
 
-        html += '<p class="ach-legend">Яркие медали — получены · Серые — ещё впереди</p>';
+        html += '<p class="ach-legend">Яркие медали — получены · Туманные — ещё впереди</p>';
+        return html;
+    },
+
+    ensureAchievementToastHost() {
+        let host = document.getElementById('ach-toast-host');
+        if (host) return host;
+        host = document.createElement('div');
+        host.id = 'ach-toast-host';
+        host.className = 'ach-toast-host';
+        host.setAttribute('aria-live', 'polite');
+        document.body.appendChild(host);
+        return host;
+    },
+
+    showAchievementToasts(items) {
+        if (!items || !items.length) return;
+        const host = this.ensureAchievementToastHost();
+        items.forEach((item, idx) => {
+            setTimeout(() => {
+                const el = document.createElement('div');
+                el.className = 'ach-toast';
+                const iconHtml = item.icon
+                    ? `<span class="ach-toast-icon"><img src="/icons/${String(item.icon).replace(/\.png$/i, '.svg')}" alt=""></span>`
+                    : `<span class="ach-toast-emoji">${item.emoji || '🏅'}</span>`;
+                el.innerHTML = `${iconHtml}<div class="ach-toast-body">
+                    <div class="ach-toast-label">Новое достижение</div>
+                    <div class="ach-toast-title">${LegionCore.escapeHtml(item.title || '')}</div>
+                </div>`;
+                host.appendChild(el);
+                requestAnimationFrame(() => el.classList.add('ach-toast--show'));
+                setTimeout(() => {
+                    el.classList.remove('ach-toast--show');
+                    setTimeout(() => el.remove(), 350);
+                }, 4200);
+            }, idx * 700);
+        });
+    },
+
+    renderHallAchievementFeed(items) {
+        let html = `<section class="hall-feed hall-feed--achievements">
+            <h2 class="hall-feed-title">Недавние достижения</h2>`;
+        if (!items || !items.length) {
+            html += '<p class="hall-feed-empty note">Пока тихо — новые трофеи появятся здесь.</p>';
+        } else {
+            html += '<div class="history-list hall-feed-list">';
+            items.forEach((item) => {
+                const dateLabel = this.formatAchievementDate(item.date);
+                const nameHtml = (typeof LegionCore !== 'undefined' && LegionCore.formatAthleteLink)
+                    ? LegionCore.formatAthleteLink(item.name, item.coachSlug)
+                    : LegionCore.escapeHtml(item.name);
+                const title = LegionCore.escapeHtml(item.title || '');
+                const icon = item.icon
+                    ? `<img src="/icons/${String(item.icon).replace(/\.png$/i, '.svg')}" alt="" class="hall-ach-icon">`
+                    : `<span class="hall-ach-emoji">${item.emoji || '🏅'}</span>`;
+                html += `<div class="history-item hall-feed-item hall-feed-item--ach">
+                    <span class="hall-ach-icon-wrap">${icon}</span>
+                    <span class="hall-ach-text">${nameHtml} получил «${title}»</span>
+                    <span class="hall-ach-date">${dateLabel}</span>
+                </div>`;
+            });
+            html += '</div>';
+        }
+        html += '</section>';
         return html;
     },
 
@@ -348,7 +511,7 @@ const LegionUI = {
             <div class="hall-hero-icon" aria-hidden="true">🏆</div>
             <div>
                 <h2 class="hall-title">Зал славы</h2>
-                <p class="hall-intro">Лучшие результаты в истории клуба по каждому упражнению. Ниже — лента недавних рекордов из истории изменений.</p>
+                <p class="hall-intro">Лучшие результаты в истории клуба по каждому упражнению. Ниже — лента недавних рекордов.</p>
             </div>
         </div>`;
 
@@ -422,6 +585,155 @@ const LegionUI = {
             ? this.getLeagueMeta(2).label
             : (clubRank.league === 2 ? this.getLeagueMeta(1).label : 'следующего звания');
         return `<span class="rank-modal-hint">До ${next.toLowerCase()}: ещё ${remaining} ${this.pluralExercises(remaining)}</span>`;
+    },
+
+    pluralNorms(n) {
+        const abs = Math.abs(Math.round(n));
+        const mod10 = abs % 10;
+        const mod100 = abs % 100;
+        if (mod10 === 1 && mod100 !== 11) return 'норматив';
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'норматива';
+        return 'нормативов';
+    },
+
+    /**
+     * Карта легионера: Новобранец → Бронза → Серебро → Золото
+     * current = станция-цель (к которой идём), не последнее закрытое звание
+     */
+    buildLegionPathModel(clubRank) {
+        const league = clubRank && clubRank.league ? Number(clubRank.league) : 3;
+        const completed = clubRank && clubRank.completed != null ? Number(clubRank.completed) : 0;
+        const total = clubRank && clubRank.total ? Number(clubRank.total) : 20;
+
+        const goldDone = league === 1 && completed >= total;
+
+        // 0 новобранец · 1 бронза · 2 серебро · 3 золото
+        let currentIndex = 0;
+        if (goldDone) {
+            currentIndex = 3;
+        } else if (league === 1) {
+            currentIndex = 3; // цель — золото
+        } else if (league === 2) {
+            currentIndex = 2; // цель — серебро
+        } else if (completed > 0) {
+            currentIndex = 1; // цель — бронза
+        } else {
+            currentIndex = 0; // ещё новобранец
+        }
+
+        const remaining = Math.max(0, total - completed);
+        let hint = '';
+        if (currentIndex === 0) {
+            hint = 'Закрой первые нормативы бронзовой лиги';
+        } else if (currentIndex === 1) {
+            hint = remaining > 0
+                ? `Ещё ${remaining} ${this.pluralNorms(remaining)} до Бронзового легионера`
+                : 'Бронзовая лига почти закрыта';
+        } else if (currentIndex === 2) {
+            hint = remaining > 0
+                ? `Ещё ${remaining} ${this.pluralNorms(remaining)} до Серебряного центуриона`
+                : 'Серебряная лига почти закрыта';
+        } else if (goldDone) {
+            hint = 'Путь пройден · Золотой император';
+        } else {
+            hint = remaining > 0
+                ? `Ещё ${remaining} ${this.pluralNorms(remaining)} до Золотого императора`
+                : 'Золотая лига почти закрыта';
+        }
+
+        const stations = [
+            {
+                id: 'recruit',
+                title: 'Новобранец',
+                short: 'Старт',
+                icon: null,
+                emoji: '🛡️'
+            },
+            {
+                id: 'bronze',
+                title: 'Бронзовый легионер',
+                short: 'Бронза',
+                icon: 'rank-bronze.svg',
+                emoji: '🥉'
+            },
+            {
+                id: 'silver',
+                title: 'Серебряный центурион',
+                short: 'Серебро',
+                icon: 'rank-silver.svg',
+                emoji: '🥈'
+            },
+            {
+                id: 'gold',
+                title: 'Золотой император',
+                short: 'Золото',
+                icon: 'rank-gold.svg',
+                emoji: '🥇'
+            }
+        ].map((station, index) => {
+            let state = 'locked';
+            if (index < currentIndex) state = 'done';
+            else if (index === currentIndex) state = 'current';
+            return Object.assign({}, station, { state, index });
+        });
+
+        return { stations, currentIndex, hint, remaining, goldDone };
+    },
+
+    legionPathMedalSvg(kind) {
+        const meta = {
+            bronze: { gid: 'lp-b', c0: '#efc3a0', c1: '#bb7443', c2: '#6e3916', mark: 'III', ink: '#2b1308' },
+            silver: { gid: 'lp-s', c0: '#f5fbff', c1: '#b7c3d4', c2: '#6d798b', mark: 'II', ink: '#1c2330' },
+            gold: { gid: 'lp-g', c0: '#fff2c5', c1: '#efbb45', c2: '#8f5a11', mark: 'I', ink: '#2f1a06' }
+        }[kind];
+        if (!meta) return '';
+        return `<svg class="legion-path-icon-svg" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <defs>
+                <linearGradient id="${meta.gid}" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="${meta.c0}"/>
+                    <stop offset="0.55" stop-color="${meta.c1}"/>
+                    <stop offset="1" stop-color="${meta.c2}"/>
+                </linearGradient>
+            </defs>
+            <path d="M32 6 52 13v16c0 14-9 23-20 29C21 52 12 43 12 29V13Z" fill="#101722" stroke="url(#${meta.gid})" stroke-width="2.5"/>
+            <path d="M32 14 45 18v11c0 8-5 14-13 19-8-5-13-11-13-19V18Z" fill="url(#${meta.gid})"/>
+            <text x="32" y="38" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="14" fill="${meta.ink}">${meta.mark}</text>
+        </svg>`;
+    },
+
+    renderLegionPathMap(clubRank) {
+        const model = this.buildLegionPathModel(clubRank);
+        let html = '<div class="legion-path" role="list" aria-label="Карта легионера">';
+        html += '<div class="legion-path-track">';
+
+        model.stations.forEach((station, idx) => {
+            if (idx > 0) {
+                const prev = model.stations[idx - 1];
+                const lineState = prev.state === 'done' ? 'done' : (prev.state === 'current' ? 'active' : 'locked');
+                html += `<div class="legion-path-connector legion-path-connector--${lineState}" aria-hidden="true"></div>`;
+            }
+
+            let iconHtml;
+            if (station.id === 'bronze' || station.id === 'silver' || station.id === 'gold') {
+                iconHtml = this.legionPathMedalSvg(station.id);
+            } else {
+                iconHtml = `<span class="legion-path-emoji">${station.emoji}</span>`;
+            }
+
+            html += `<div class="legion-path-station legion-path-station--${station.state}" role="listitem">
+                <div class="legion-path-node" aria-hidden="true">${iconHtml}</div>
+                <div class="legion-path-title">${LegionCore.escapeHtml(station.title)}</div>
+                <div class="legion-path-status">${
+                    station.state === 'done' ? 'пройдено'
+                        : (station.state === 'current' ? 'сейчас здесь' : 'впереди')
+                }</div>
+            </div>`;
+        });
+
+        html += '</div>';
+        html += `<p class="legion-path-hint">${LegionCore.escapeHtml(model.hint)}</p>`;
+        html += '</div>';
+        return html;
     },
 
     pluralExercises(n) {

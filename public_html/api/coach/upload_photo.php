@@ -21,25 +21,19 @@ try {
 legion_coach_require_auth_json($coach);
 
 $name = isset($_POST['name']) ? (string) $_POST['name'] : '';
+$athleteId = isset($_POST['athleteId']) && is_numeric($_POST['athleteId']) ? (int) $_POST['athleteId'] : 0;
 $file = isset($_FILES['photo']) && is_array($_FILES['photo']) ? $_FILES['photo'] : array();
 
 try {
-    $data = legion_pilot_upload_athlete_photo($name, $file, $coach);
-    $norm = legion_normalize_person_name($name);
-    $storedPhoto = '';
-    foreach ($data['athletes'] as $row) {
-        if (!is_array($row)) {
-            continue;
-        }
-        if (legion_normalize_person_name(isset($row['name']) ? $row['name'] : '') === $norm) {
-            $storedPhoto = isset($row['photo']) ? (string) $row['photo'] : '';
-            break;
-        }
-    }
+    $data = legion_pilot_upload_athlete_photo($name, $file, $coach, $athleteId);
+    $resolved = legion_pilot_resolve_athlete($data['athletes'], $athleteId, $name);
+    $norm = legion_normalize_person_name($resolved['athlete']['name']);
+    $storedPhoto = isset($resolved['athlete']['photo']) ? (string) $resolved['athlete']['photo'] : '';
 
     echo json_encode(array(
         'success' => true,
         'name' => $norm,
+        'athleteId' => isset($resolved['athlete']['id']) ? (int) $resolved['athlete']['id'] : null,
         'photo' => legion_pilot_resolve_photo_url($norm, $storedPhoto, $coach),
         'hasPhoto' => legion_pilot_athlete_has_uploaded_photo($storedPhoto, $coach),
         'avatarIndex' => legion_pilot_default_avatar_index($norm),

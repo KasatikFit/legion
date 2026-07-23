@@ -416,16 +416,27 @@ function legion_dossier_is_elite_member($coachSlug, $athleteName) {
     return false;
 }
 
-function legion_dossier_period_improvements_summary(array $history, $name, $days = 30) {
-    $cutoff = time() - ((int) $days * 86400);
+function legion_dossier_history_entry_matches(array $entry, $name, $athleteId = 0) {
+    $athleteId = (int) $athleteId;
+    if ($athleteId > 0 && !empty($entry['athleteId']) && (int) $entry['athleteId'] === $athleteId) {
+        return true;
+    }
+    if ($athleteId > 0 && !empty($entry['athleteId']) && (int) $entry['athleteId'] !== $athleteId) {
+        return false;
+    }
     $norm = legion_normalize_person_name($name);
+    if ($norm === '' || empty($entry['name'])) {
+        return false;
+    }
+    return legion_normalize_person_name($entry['name']) === $norm;
+}
+
+function legion_dossier_period_improvements_summary(array $history, $name, $days = 30, $athleteId = 0) {
+    $cutoff = time() - ((int) $days * 86400);
     $improvements = 0;
     $exercises = array();
     foreach ($history as $entry) {
-        if (!is_array($entry) || empty($entry['name'])) {
-            continue;
-        }
-        if (legion_normalize_person_name($entry['name']) !== $norm) {
+        if (!is_array($entry) || !legion_dossier_history_entry_matches($entry, $name, $athleteId)) {
             continue;
         }
         $diff = isset($entry['diff']) ? (float) $entry['diff'] : 0;
@@ -625,14 +636,10 @@ function legion_dossier_format_progress_line(array $entry) {
         . ' → ' . (isset($entry['newVal']) ? $entry['newVal'] : '—');
 }
 
-function legion_dossier_aggregate_history_by_day(array $history, $name) {
-    $norm = legion_normalize_person_name($name);
+function legion_dossier_aggregate_history_by_day(array $history, $name, $athleteId = 0) {
     $groups = array();
     foreach ($history as $entry) {
-        if (!is_array($entry) || empty($entry['name'])) {
-            continue;
-        }
-        if (legion_normalize_person_name($entry['name']) !== $norm) {
+        if (!is_array($entry) || !legion_dossier_history_entry_matches($entry, $name, $athleteId)) {
             continue;
         }
         $day = legion_dossier_history_day_key(isset($entry['date']) ? $entry['date'] : '');
@@ -679,21 +686,40 @@ function legion_dossier_aggregate_history_by_day(array $history, $name) {
     return $out;
 }
 
-function legion_dossier_build($coachSlug, $athleteName) {
+function legion_dossier_build($coachSlug, $athleteName = '', $athleteId = 0) {
     $coachSlug = legion_coach_normalize_slug($coachSlug);
     $data = legion_pilot_load_dataset($coachSlug);
     $meta = legion_coach_meta($coachSlug);
-    $idx = legion_pilot_find_athlete_index($data['athletes'], $athleteName);
-    if ($idx < 0) {
+
+    $athleteId = (int) $athleteId;
+    $resolved = null;
+    if ($athleteId > 0 || trim((string) $athleteName) !== '') {
+        try {
+            $resolved = legion_pilot_resolve_athlete($data['athletes'], $athleteId, $athleteName);
+        } catch (InvalidArgumentException $e) {
+            return null;
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+    if ($resolved === null) {
         return null;
     }
+    $idx = $resolved['index'];
+    $athlete = $resolved['athlete'];
+    $athleteName = legion_normalize_person_name($athlete['name']);
+    $athleteId = isset($athlete['id']) ? (int) $athlete['id'] : $athleteId;
 
     $athletes = $data['athletes'];
     legion_rating_calculate_all($athletes);
     $sorted = legion_rating_sort_by_total($athletes);
     $groupPlace = null;
     foreach ($sorted as $i => $row) {
-        if (legion_normalize_person_name($row['name']) === legion_normalize_person_name($athleteName)) {
+        if ($athleteId > 0 && !empty($row['id']) && (int) $row['id'] === $athleteId) {
+            $groupPlace = $i + 1;
+            break;
+        }
+        if (legion_normalize_person_name($row['name']) === $athleteName) {
             $groupPlace = $i + 1;
             break;
         }
@@ -732,14 +758,12 @@ function legion_dossier_build($coachSlug, $athleteName) {
 
     $history = isset($data['history']) && is_array($data['history']) ? $data['history'] : array();
     $historyCount = 0;
-    $normName = legion_normalize_person_name($athleteName);
     foreach ($history as $entry) {
-        if (is_array($entry) && !empty($entry['name'])
-            && legion_normalize_person_name($entry['name']) === $normName) {
+        if (is_array($entry) && legion_dossier_history_entry_matches($entry, $athleteName, $athleteId)) {
             $historyCount++;
         }
     }
-    $progress = array_slice(legion_dossier_aggregate_history_by_day($history, $athleteName), 0, 12);
+    $progress = array_slice(legion_dossier_aggregate_history_by_day($history, $athleteName, $athleteId), 0, 12);
     $progressLines = array();
     foreach ($progress as $entry) {
         $progressLines[] = legion_dossier_format_progress_line($entry);
@@ -768,7 +792,21 @@ function legion_dossier_build($coachSlug, $athleteName) {
     $overallGap = legion_dossier_overall_rank_gap($coachSlug, $athleteName);
     $rankProgress = legion_dossier_rank_progress($marks);
     $isElite = legion_dossier_is_elite_member($coachSlug, $athleteName);
-    $periodSummary = legion_dossier_period_improvements_summary($history, $athleteName, 30);
+    $periodSummary = legion_dossier_period_improvements_summary($history, $athleteName, 30, $athleteId);
+
+    $dossierAthlete = array(
+        'name' => $athlete['name'],
+        'age' => $age,
+        'birthdate' => $birthdate,
+        'photo' => $photo,
+        'groupPlace' => $groupPlace,
+        'overallPlace' => $overall['place'],
+        'isElite' => $isElite,
+        'overallGapText' => isset($overallGap['текст']) ? $overallGap['текст'] : null,
+    );
+    if ($athleteId > 0) {
+        $dossierAthlete['id'] = $athleteId;
+    }
 
     $dossierCore = array(
         'meta' => array(
@@ -779,16 +817,7 @@ function legion_dossier_build($coachSlug, $athleteName) {
             'groupSize' => count($data['athletes']),
             'clubRankedTotal' => $overall['total'],
         ),
-        'athlete' => array(
-            'name' => $athlete['name'],
-            'age' => $age,
-            'birthdate' => $birthdate,
-            'photo' => $photo,
-            'groupPlace' => $groupPlace,
-            'overallPlace' => $overall['place'],
-            'isElite' => $isElite,
-            'overallGapText' => isset($overallGap['текст']) ? $overallGap['текст'] : null,
-        ),
+        'athlete' => $dossierAthlete,
         'rank' => $clubRank,
         'rankProgress' => $rankProgress,
         'rankSummary' => legion_dossier_rank_summary($marks),
@@ -1089,12 +1118,15 @@ function legion_dossier_render_picker_html($coachSlug, $token, array $athletes, 
                     if (!is_array($row) || empty($row['name'])) {
                         continue;
                     }
-                    $nameQ = rawurlencode($row['name']);
                     $base = $reportBase . '?token=' . $tokenQ;
                     if (!$omitCoachInUrl) {
                         $base .= '&coach=' . $coachQ;
                     }
-                    $base .= '&name=' . $nameQ;
+                    if (!empty($row['id'])) {
+                        $base .= '&id=' . (int) $row['id'];
+                    } else {
+                        $base .= '&name=' . rawurlencode($row['name']);
+                    }
                     ?>
                 <li>
                     <a href="<?php echo legion_report_h($base); ?>"><?php echo legion_report_h($row['name']); ?></a>

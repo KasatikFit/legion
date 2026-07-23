@@ -221,44 +221,72 @@ function legion_snapshot_current_ranks(array $athletes, array $mergedRanks) {
         if ($counts === null) {
             continue;
         }
-        $out[$name] = $counts;
+        $key = ($slug !== '') ? ($slug . ':' . $name) : $name;
+        $counts['name'] = $name;
+        if ($slug !== '') {
+            $counts['coachSlug'] = $slug;
+        }
+        if (!empty($athlete['id'])) {
+            $counts['athleteId'] = (int) $athlete['id'];
+        }
+        $out[$key] = $counts;
     }
     return $out;
 }
 
 function legion_build_rank_history_entries(array $baseline, array $current, $date) {
     $entries = array();
-    foreach ($current as $name => $newCounts) {
-        if (!isset($baseline[$name]) || !is_array($baseline[$name])) {
+    foreach ($current as $key => $newCounts) {
+        if (!is_array($newCounts)) {
             continue;
         }
-        $oldCounts = $baseline[$name];
+        $oldCounts = null;
+        if (isset($baseline[$key]) && is_array($baseline[$key])) {
+            $oldCounts = $baseline[$key];
+        } elseif (isset($newCounts['name'])) {
+            // Dual-read: старый baseline по голому ФИО
+            $bare = legion_normalize_person_name($newCounts['name']);
+            if ($bare !== '' && isset($baseline[$bare]) && is_array($baseline[$bare])) {
+                $oldCounts = $baseline[$bare];
+            }
+        }
+        if ($oldCounts === null) {
+            continue;
+        }
+        $name = isset($newCounts['name'])
+            ? legion_normalize_person_name($newCounts['name'])
+            : (strpos((string) $key, ':') !== false
+                ? legion_normalize_person_name(substr((string) $key, strpos((string) $key, ':') + 1))
+                : legion_normalize_person_name($key));
+        if ($name === '') {
+            continue;
+        }
+        $base = array(
+            'date' => $date,
+            'name' => $name,
+        );
+        if (!empty($newCounts['coachSlug'])) {
+            $base['coachSlug'] = (string) $newCounts['coachSlug'];
+        } elseif (strpos((string) $key, ':') !== false) {
+            $base['coachSlug'] = substr((string) $key, 0, strpos((string) $key, ':'));
+        }
+        if (!empty($newCounts['athleteId'])) {
+            $base['athleteId'] = (int) $newCounts['athleteId'];
+        }
         if ($oldCounts['bronze'] < 20 && $newCounts['bronze'] >= 20) {
-            $entries[] = array(
-                'date' => $date,
-                'name' => $name,
-                'event' => 'league_bronze',
-            );
+            $entries[] = array_merge($base, array('event' => 'league_bronze'));
         }
         if ($oldCounts['bronze'] >= 20 && $oldCounts['silver'] < 20 && $newCounts['silver'] >= 20) {
-            $entries[] = array(
-                'date' => $date,
-                'name' => $name,
-                'event' => 'league_silver',
-            );
+            $entries[] = array_merge($base, array('event' => 'league_silver'));
         }
         if ($oldCounts['silver'] >= 20 && $oldCounts['gold'] < 20 && $newCounts['gold'] >= 20) {
-            $entries[] = array(
-                'date' => $date,
-                'name' => $name,
-                'event' => 'league_gold',
-            );
+            $entries[] = array_merge($base, array('event' => 'league_gold'));
         }
     }
     return $entries;
 }
 
-function legion_log_rank_mark_change($name, $markIndex, $oldVal, $newVal, $date = null) {
+function legion_log_rank_mark_change($name, $markIndex, $oldVal, $newVal, $date = null, $athleteId = 0, $coachSlug = '') {
     $oldVal = (int) $oldVal;
     $newVal = (int) $newVal;
     if ($oldVal === $newVal) {
@@ -282,6 +310,12 @@ function legion_log_rank_mark_change($name, $markIndex, $oldVal, $newVal, $date 
         'oldVal' => $oldVal,
         'newVal' => $newVal,
     );
+    if ((int) $athleteId > 0) {
+        $entry['athleteId'] = (int) $athleteId;
+    }
+    if ($coachSlug !== '') {
+        $entry['coachSlug'] = (string) $coachSlug;
+    }
     legion_append_rank_history_entries(array($entry));
 }
 

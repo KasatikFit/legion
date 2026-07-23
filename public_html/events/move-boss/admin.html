@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Move Boss · Админ</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: #121a2b;
+        --text: #e8eefc;
+        --muted: #93a0b8;
+        --border: #243049;
+        --accent: #f5b942;
+        --danger: #f87171;
+        --ok: #4ade80;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        background: radial-gradient(1200px 600px at 20% -10%, #1a2744, var(--bg));
+        color: var(--text);
+        min-height: 100vh;
+        padding: 24px 16px 48px;
+      }
+      h1 { margin: 0 0 8px; font-size: 1.6rem; }
+      .muted { color: var(--muted); margin: 0 0 20px; }
+      .card {
+        max-width: 920px;
+        margin: 0 auto 16px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      label { display: block; font-weight: 700; margin-bottom: 6px; color: var(--muted); }
+      input {
+        width: 100%;
+        max-width: 320px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #0a101c;
+        color: var(--text);
+        font: inherit;
+      }
+      button {
+        margin-top: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--accent) 25%, transparent);
+        color: var(--text);
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button.danger {
+        background: color-mix(in srgb, var(--danger) 22%, transparent);
+        border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+      }
+      button.ghost { background: transparent; }
+      .msg { min-height: 1.3em; margin: 8px 0 0; font-weight: 700; }
+      .msg.ok { color: var(--ok); }
+      .msg.bad { color: var(--danger); }
+      table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+      th, td {
+        text-align: left;
+        padding: 10px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .actions input { max-width: 140px; margin: 0; }
+      .actions button { margin: 0; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Move Boss · Админ</h1>
+      <p class="muted">Удаление игроков и смена паролей. <a href="./">← к арене</a></p>
+      <div id="login-box">
+        <label for="admin-pass">Пароль админа</label>
+        <input id="admin-pass" type="password" autocomplete="current-password" />
+        <button type="button" id="btn-login">Войти</button>
+        <p class="msg" id="login-msg"></p>
+      </div>
+      <div id="admin-box" hidden>
+        <div class="actions">
+          <button type="button" id="btn-refresh">Обновить список</button>
+          <button type="button" class="ghost" id="btn-logout">Выйти</button>
+        </div>
+        <p class="msg" id="admin-msg"></p>
+      </div>
+    </div>
+    <div class="card" id="table-card" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th>Ник</th>
+            <th>Знамёна</th>
+            <th>Испыт.</th>
+            <th>Повторы</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="players-body"></tbody>
+      </table>
+    </div>
+    <script>
+      const API = '/api/events';
+      const KEY = 'legion-mb-admin-token';
+      let token = sessionStorage.getItem(KEY) || '';
+
+      function setMsg(id, text, ok) {
+        const el = document.getElementById(id);
+        el.textContent = text || '';
+        el.className = 'msg ' + (ok ? 'ok' : text ? 'bad' : '');
+      }
+
+      async function api(path, opts = {}) {
+        const res = await fetch(API + path, {
+          headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+          ...opts
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Ошибка ' + res.status);
+        return data;
+      }
+
+      function showLoggedIn(on) {
+        document.getElementById('login-box').hidden = on;
+        document.getElementById('admin-box').hidden = !on;
+        document.getElementById('table-card').hidden = !on;
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      async function loadPlayers() {
+        const data = await api('/admin/players.php?token=' + encodeURIComponent(token));
+        const body = document.getElementById('players-body');
+        body.innerHTML = '';
+        if (!data.players.length) {
+          body.innerHTML = '<tr><td colspan="5">Пока нет игроков</td></tr>';
+          return;
+        }
+        for (const p of data.players) {
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td><strong>' +
+            escapeHtml(p.nickname) +
+            '</strong><br/><span class="muted">' +
+            escapeHtml(p.displayName || '') +
+            '</span></td>' +
+            '<td>' + p.bannersCleared + '</td><td>' + p.challengesCleared +
+            '</td><td>' + p.lifetimeReps + '</td><td class="actions"></td>';
+          const actions = tr.querySelector('.actions');
+          const passInput = document.createElement('input');
+          passInput.type = 'password';
+          passInput.placeholder = 'Новый пароль';
+          const btnPass = document.createElement('button');
+          btnPass.textContent = 'Сменить пароль';
+          btnPass.addEventListener('click', async () => {
+            try {
+              await api('/admin/set_password.php', {
+                method: 'POST',
+                body: JSON.stringify({ token, playerId: p.id, password: passInput.value })
+              });
+              setMsg('admin-msg', 'Пароль обновлён для ' + p.nickname, true);
+              passInput.value = '';
+            } catch (e) {
+              setMsg('admin-msg', e.message, false);
+            }
+          });
+          const btnDel = document.createElement('button');
+          btnDel.className = 'danger';
+          btnDel.textContent = 'Удалить';
+          btnDel.addEventListener('click', async () => {
+            if (!confirm('Удалить игрока ' + p.nickname + '?')) return;
+            try {
+              await api('/admin/delete_player.php', {
+                method: 'POST',
+                body: JSON.stringify({ token, playerId: p.id })
+              });
+              setMsg('admin-msg', 'Удалён: ' + p.nickname, true);
+              await loadPlayers();
+            } catch (e) {
+              setMsg('admin-msg', e.message, false);
+            }
+          });
+          actions.append(passInput, btnPass, btnDel);
+          body.appendChild(tr);
+        }
+      }
+
+      document.getElementById('btn-login').addEventListener('click', async () => {
+        try {
+          const password = document.getElementById('admin-pass').value;
+          const data = await api('/admin/login.php', {
+            method: 'POST',
+            body: JSON.stringify({ password })
+          });
+          token = data.token;
+          sessionStorage.setItem(KEY, token);
+          setMsg('login-msg', '', true);
+          showLoggedIn(true);
+          await loadPlayers();
+        } catch (e) {
+          setMsg('login-msg', e.message, false);
+        }
+      });
+
+      document.getElementById('btn-refresh').addEventListener('click', () => {
+        loadPlayers().catch((e) => setMsg('admin-msg', e.message, false));
+      });
+
+      document.getElementById('btn-logout').addEventListener('click', () => {
+        token = '';
+        sessionStorage.removeItem(KEY);
+        showLoggedIn(false);
+      });
+
+      if (token) {
+        showLoggedIn(true);
+        loadPlayers().catch(() => {
+          token = '';
+          sessionStorage.removeItem(KEY);
+          showLoggedIn(false);
+        });
+      }
+    </script>
+  </body>
+</html>
